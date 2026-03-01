@@ -1,0 +1,194 @@
+@import "tailwindcss";
+
+/* ===================== */
+/* Theme 1: Soft Mint & Sky Blue (Customized) */
+/* ===================== */
+:root {
+  /* Nền chính của toàn ứng dụng */
+  --bg-gradient-start: #edfcde;
+  /* Xanh dương siêu nhạt (Sky 50) */
+  --bg-gradient-end: #f8fafc;
+  /* Xám trắng (Slate 50) */
+
+  /* Màu chữ chính cho ứng dụng */
+  --foreground: #0f172a;
+
+  /* Màu xanh ngọc làm điểm nhấn chung (Accent) */
+  --accent: #10b981;
+  --accent-hover: #059669;
+
+  /* Màu đỏ nhạt làm điểm nhấn cho các nút/tab quan trọng (ví dụ: Live active) */
+  --accent-red: #ef4444;
+  /* Đỏ nhẹ */
+  --accent-red-hover: #dc2626;
+  /* Đỏ khi hover */
+
+  /* Màu nền & viền của thẻ Card (MatchCard, SubTabBar) */
+  --surface: #ffffff;
+  --surface-hover: #7ad79b;
+
+  /* Màu Header và SubNav (Solid - không bóng kính) */
+  --header-bg: #feeedc;
+  --header-btn-bg: #f1f5f9;
+  --header-btn-hover: #e2e8f0;
+  --subnav-bg: #fafde9;
+
+  --border: #e2e8f0;
+
+  /* Màu Logo Chữ Header */
+  --logo-text-primary: #fd7d46;
+  /* Teal sẫm sang trọng */
+  --logo-text-secondary: #fd7d46;
+  /* Teal 600 */
+  --logo-text-accent: #fd7d46;
+  /* Emerald 600 */
+
+  /* Màu cụ thể cho MatchCard */
+  /* Nền gradient xanh lam nhạt cho MatchCard */
+  --mc-bg-start: #b2dbf6;
+  /* Xanh dương siêu nhạt (Sky 100) */
+  --mc-bg-end: #ffffff;
+  /* Trắng */
+
+  /* Màu khi hover vào MatchCard */
+  --mc-hover-bg: #9af3c9;
+  /* Xanh lục nhạt (Emerald 50) */
+  --mc-hover-border: #067e58;
+  /* Xanh lục đậm (Emerald 600) */
+
+  /* Background hình tròn bọc quanh Logo đội bóng */
+  --logo-bg: #7b7f83;
+  /* Xám nhạt (Slate 100) */
+}
+
+.dark {
+  --bg-gradient-start: #0f172a;
+  /* Slate 900 */
+  --bg-gradient-end: #020617;
+  /* Slate 950 (Đen sẫm hơn) */
+
+  --foreground: #f8fafc;
+
+  --accent: #34d399;
+  --accent-hover: #10b981;
+
+  --accent-red: #f87171;
+  --accent-red-hover: #ef4444;
+
+  --surface: #1e293b;
+  --surface-hover: #334155;
+
+  --header-bg: #1e293b;
+  --header-btn-bg: #334155;
+  --header-btn-hover: #475569;
+  --subnav-bg: #1e293b;
+
+  --border: #334155;
+
+  /* Màu Logo Chữ Header (Dark mode) */
+  --logo-text-primary: #f8fafc;
+  --logo-text-secondary: #e2e8f0;
+  --logo-text-accent: #34d399;
+
+  --mc-bg-start: #0f172a;
+  --mc-bg-end: #1e293b;
+
+  --mc-hover-bg: #064e3b;
+  --mc-hover-border: #10b981;
+
+  --logo-bg: rgba(255, 255, 255, 0.08);
+}
+
+@theme {
+  --color-bg-start: var(--bg-gradient-start);
+  --color-bg-end: var(--bg-gradient-end);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-red: var(--accent-red);
+  --color-accent-red-hover: var(--accent-red-hover);
+
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-header-bg: var(--header-bg);
+  --color-header-btn-bg: var(--header-btn-bg);
+  --color-header-btn-hover: var(--header-btn-hover);
+  --color-subnav-bg: var(--subnav-bg);
+  --color-border-theme: var(--border);
+  --color-logo-text-primary: var(--logo-text-primary);
+  --color-logo-text-secondary: var(--logo-text-secondary);
+  --color-logo-text-accent: var(--logo-text-accent);
+
+  --color-mc-bg-start: var(--mc-bg-start);
+  --color-mc-bg-end: var(--mc-bg-end);
+  --color-mc-hover-bg: var(--mc-hover-bg);
+  --color-mc-hover-border: var(--mc-hover-border);
+  --color-logo-bg: var(--logo-bg);
+}
+
+body {
+  font-family: var(--font-sans), 'Inter', Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Mesh Gradient Blobs */
+body::before {
+  content: "";
+  position: fixed;
+  top: -20%;
+  left: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
+  /* Xanh lam loang */
+  pointer-events: none;
+  z-index: -1;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  bottom: -20%;
+  right: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+  /* Xanh lá loang */
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Logo background — ensures white logos visible on both light/dark */
+.logo-bg {
+  background-color: var(--logo-bg);
+}
+
+/* Slide-in animation */
+@keyframes slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-in {
+  animation: slide-in-top 0.22s ease;
+}
