@@ -21,6 +21,11 @@ const LAUNCH_OPTIONS = {
         '--disable-blink-features=AutomationControlled',
         '--window-size=1280,800',
         '--autoplay-policy=no-user-gesture-required',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--mute-audio',
+        '--disable-extensions',
+        '--no-zygote',
     ],
 };
 
