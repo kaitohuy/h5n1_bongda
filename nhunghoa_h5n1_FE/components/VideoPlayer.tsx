@@ -133,14 +133,15 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
         <div ref={containerRef} className="w-full flex flex-col bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden animate-in slide-in-from-top-4 fade-in duration-300">
 
             {/* ────────── Top title bar with ALL controls ────────── */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50 bg-background/80 flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-border/50 bg-background/80 gap-3">
 
                 {/* Left: match info */}
-                <div className="flex items-center gap-2 flex-1 min-w-0 basis-full sm:basis-0">
+                <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
                     {match.status === 'Trực tiếp' && (
-                        <span className="shrink-0 flex items-center gap-1 bg-red-500/15 px-2 py-0.5 rounded text-[10px] font-bold text-red-500 border border-red-500/30">
+                        <span className="shrink-0 flex items-center gap-1 bg-red-500/15 px-1.5 sm:px-2 py-0.5 rounded text-[10px] font-bold text-red-500 border border-red-500/30">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                            TRỰC TIẾP
+                            <span className="hidden sm:inline">TRỰC TIẾP</span>
+                            <span className="sm:hidden">LIVE</span>
                         </span>
                     )}
                     <h2 className="text-sm sm:text-base font-bold truncate">
@@ -148,25 +149,22 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
                     </h2>
                 </div>
 
-                {/* Middle: Fullscreen */}
-                <div className="flex justify-center flex-1 shrink-0">
+                {/* Right / Bottom: action buttons (Scrollable on mobile) */}
+                <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 hide-scrollbar">
                     <button
                         onClick={handleFullscreen}
-                        className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-background/70 text-foreground/70 border border-border hover:bg-accent hover:text-black hover:border-accent transition-all"
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-background/70 text-foreground/70 border border-border hover:bg-accent hover:text-black hover:border-accent transition-all whitespace-nowrap"
                     >
                         <Maximize size={14} />
                         Toàn màn hình
                     </button>
-                </div>
 
-                {/* Right: action buttons */}
-                <div className="flex items-center justify-end gap-2 flex-1 shrink-0">
                     {/* Server buttons */}
                     {['1', '2'].map((s) => (
                         <button
                             key={s}
                             onClick={() => onServerChange(s)}
-                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all border ${activeServer === s
+                            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border whitespace-nowrap ${activeServer === s
                                 ? 'bg-accent text-black border-accent shadow-[0_0_10px_var(--color-accent)]'
                                 : 'bg-background/70 text-foreground/70 border-border hover:bg-surface-hover hover:text-foreground'
                                 }`}
@@ -178,7 +176,7 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
                     {/* Close */}
                     <button
                         onClick={onClose}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-background/70 text-foreground/70 border border-border hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all ml-2"
+                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-background/70 text-foreground/70 border border-border hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all sm:ml-2 whitespace-nowrap"
                     >
                         <X size={13} />
                         Đóng
