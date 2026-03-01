@@ -1,5 +1,5 @@
 # Sử dụng image chính chủ của Playwright (đã cài sẵn Chromium và mọi thư viện cần thiết)
-FROM mcr.microsoft.com/playwright:v1.41.0-jammy
+FROM mcr.microsoft.com/playwright:v1.58.2-jammy
 WORKDIR /app
 # Khai báo biến môi trường cho Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
