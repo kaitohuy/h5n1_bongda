@@ -91,7 +91,8 @@ export default function Home() {
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
-        if (mounted) setStreamUrl(`${BE_URL}/api/proxy?url=${encodeURIComponent(data.streamUrl)}${refParam}`);
+        const cfWorker = process.env.NEXT_PUBLIC_PROXY_URL || 'https://h5n1-proxy.huynguyendoan0305.workers.dev';
+        if (mounted) setStreamUrl(`${cfWorker}/?url=${encodeURIComponent(data.streamUrl)}${refParam}`);
       } catch (e) { console.error('Stream error:', e); }
     })();
     return () => { mounted = false; };
