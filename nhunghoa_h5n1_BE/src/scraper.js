@@ -367,7 +367,7 @@ function extractLeagues(matches) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 const EXTRACT_TIMEOUT_MS = parseInt(process.env.PLAYWRIGHT_TIMEOUT_MS || '30000', 10);
-const STREAM_RE = /https?:\/\/[^\s"'\\]+\.(?:m3u8|flv)[^\s"'\\]*/gi;
+const STREAM_RE = /https?:\/\/[^\s"'\\?#]+\.(?:m3u8|flv)(?:[?#][^\s"'\\]*)?/gi;
 
 const streamCache = new Map();
 const streamInFlight = new Map();

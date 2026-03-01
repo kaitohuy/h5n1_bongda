@@ -35,11 +35,11 @@ router.get('/api/matches', async (req, res) => {
         // Leagues list from current match data (for filter dropdown)
         const leagues = extractLeagues(matches);
 
-        // Pre-fetch live stream URLs in background
-        const liveUrls = matches
-            .filter(m => m.status === 'Trực tiếp' && m.sourceUrl)
-            .map(m => m.sourceUrl);
-        prefetchLiveStreams(liveUrls);
+        // Pre-fetch live stream URLs in background (disabled to prevent Render OOM on Free tier)
+        // const liveUrls = matches
+        //     .filter(m => m.status === 'Trực tiếp' && m.sourceUrl)
+        //     .map(m => m.sourceUrl);
+        // prefetchLiveStreams(liveUrls);
 
         return res.json({ success: true, matches, leagues, elapsedMs: elapsed });
     } catch (err) {
