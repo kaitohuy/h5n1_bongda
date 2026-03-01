@@ -103,9 +103,18 @@ router.get('/api/proxy', (req, res) => {
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
     if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);
 
-    const referer = ref
-        ? decodeURIComponent(ref)
-        : `${parsedUrl.protocol}//${parsedUrl.hostname}/`;
+    let referer = ref ? decodeURIComponent(ref) : `${parsedUrl.protocol}//${parsedUrl.hostname}/`;
+    let origin = (() => { try { return new URL(referer).origin; } catch { return referer; } })();
+
+    // Many Xoilac CDNs strictly check for their own iframe domains as referer
+    if (parsedUrl.hostname.includes('procdnlive.com')
+        || parsedUrl.hostname.includes('pro2cdnlive.com')
+        || parsedUrl.hostname.includes('golivenow')
+        || parsedUrl.hostname.includes('cdnfastest.com')
+        || parsedUrl.hostname.includes('livecdnem.com')) {
+        referer = 'https://xlz.livecdnem.com/';
+        origin = 'https://xlz.livecdnem.com';
+    }
 
     const options = {
         hostname: parsedUrl.hostname,
@@ -116,7 +125,7 @@ router.get('/api/proxy', (req, res) => {
         headers: {
             'User-Agent': SCRAPER_UA,
             'Referer': referer,
-            'Origin': (() => { try { return new URL(referer).origin; } catch { return referer; } })(),
+            'Origin': origin,
             'Accept': '*/*',
             'Accept-Encoding': 'identity',
             'Connection': 'keep-alive',
