@@ -426,7 +426,14 @@ async function _doExtractM3u8(targetUrl, timeoutMs) {
         // Intercept early stream URLs
         let earlyStream = null;
         const captureEarly = (url) => {
-            if (url.includes('.m3u8') || url.includes('.flv')) earlyStream = url;
+            try {
+                const parsed = new URL(url);
+                if (parsed.pathname.endsWith('.m3u8') || parsed.pathname.endsWith('.flv')) {
+                    earlyStream = url;
+                }
+            } catch {
+                // Ignore invalid URLs
+            }
         };
         page.on('request', (req) => captureEarly(req.url()));
         page.on('response', (res) => captureEarly(res.url()));
