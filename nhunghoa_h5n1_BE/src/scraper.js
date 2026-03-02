@@ -45,7 +45,7 @@ const CONTEXT_OPTIONS = {
 // ─────────────────────────────────────────────────────────────────────────────
 const XOILAC_BASE = 'https://fshcgroup.com';
 const XOILAC_HEADERS = {
-    'User-Agent': CONTEXT_OPTIONS.userAgent,
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     'Referer': 'https://fshcgroup.com/',
     'Origin': 'https://fshcgroup.com',
     'Accept': 'application/json, text/plain, */*',
