@@ -31,11 +31,13 @@ const LAUNCH_OPTIONS = {
 
 const CONTEXT_OPTIONS = {
     userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
-        '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 800 },
+        'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 ' +
+        '(KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+    viewport: { width: 820, height: 1180 },
     locale: 'vi-VN',
     timezoneId: 'Asia/Ho_Chi_Minh',
+    hasTouch: true,
+    isMobile: true,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -400,10 +402,9 @@ async function tryExtractFromIframe(src, referer) {
             if (m3u8) {
                 return { streamUrl: m3u8, iframeSrc: src };
             }
-            // If only FLV found, rewrite to M3U8 format for iOS compatibility
-            const flv = found[0];
-            const rewritten = flv.replace(/\.flv(\?.*)?$/, '/index.m3u8$1');
-            return { streamUrl: rewritten, iframeSrc: src };
+            // Cannot safely rewrite FLV because wsSecret hash covers the URI.
+            // If only FLV is found, we have to return it as is.
+            return { streamUrl: found[0], iframeSrc: src };
         }
     } catch (err) {
         console.warn(`[extract] iframe fetch failed (${src}): ${err.message}`);
@@ -477,10 +478,9 @@ async function _doExtractM3u8(targetUrl, timeoutMs) {
             }
         }
 
-        let earlyStream = earlyStreamM3u8;
-        if (!earlyStream && earlyStreamFlv) {
-            console.log(`[extract] Only found FLV: ${earlyStreamFlv}. Converting to M3U8 for iOS compatibility...`);
-            earlyStream = earlyStreamFlv.replace(/\.flv(\?.*)?$/, '/index.m3u8$1');
+        let earlyStream = earlyStreamM3u8 || earlyStreamFlv;
+        if (earlyStreamFlv && !earlyStreamM3u8) {
+            console.log(`[extract] Only found FLV: ${earlyStreamFlv}. Note: Cannot rewrite to M3U8 because of token signatures.`);
         }
 
         if (earlyStream) {
