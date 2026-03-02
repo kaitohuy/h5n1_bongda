@@ -57,7 +57,16 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
                 // ── FLV stream via mpegts.js ──────────────────────────────
                 const mpegts = (await import('mpegts.js')).default;
                 if (mpegts.getFeatureList().mseLivePlayback) {
-                    flvPlayer = mpegts.createPlayer({ type: 'flv', url: streamUrl, isLive: true });
+                    flvPlayer = mpegts.createPlayer(
+                        { type: 'flv', url: streamUrl, isLive: true },
+                        {
+                            enableWorker: true,
+                            enableStashBuffer: false,
+                            liveBufferLatencyChasing: true,  // Auto skip to live edge when lagging
+                            liveBufferLatencyMaxLatency: 5.0, // Max tolerated latency (seconds)
+                            liveBufferLatencyMinRemain: 1.0,
+                        }
+                    );
                     flvPlayer.attachMediaElement(video);
                     flvPlayer.load();
                     video.addEventListener('canplay', () => { setIsLoading(false); video.play().catch(() => setIsLoading(false)); }, { once: true });
@@ -71,17 +80,16 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
                 if (Hls.isSupported()) {
                     hls = new Hls({
                         enableWorker: true,
-                        // Don't use lowLatencyMode — it reduces buffer size, causing
-                        // micro-freezes when proxy adds latency per segment request.
                         lowLatencyMode: false,
-                        // Buffer more segments ahead to absorb proxy latency spikes
-                        maxBufferLength: 60,          // seconds of buffer (default 30)
-                        maxMaxBufferLength: 120,      // max buffer cap
+                        maxBufferLength: 60,
+                        maxMaxBufferLength: 120,
                         maxBufferSize: 100 * 1000 * 1000,  // 100MB
-                        // Retry on error — proxy can occasionally timeout
                         manifestLoadingMaxRetry: 3,
                         levelLoadingMaxRetry: 3,
                         fragLoadingMaxRetry: 3,
+                        // ── Live Edge Sync Config ──
+                        liveSyncDurationCount: 3,        // Try to stay 3 chunks behind the live edge
+                        liveMaxLatencyDurationCount: 7,  // If we fall 7 chunks behind, jump forward to liveSync
                     });
                     hls.loadSource(streamUrl);
                     hls.attachMedia(video);
