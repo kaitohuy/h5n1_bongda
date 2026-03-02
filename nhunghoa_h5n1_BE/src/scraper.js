@@ -397,7 +397,13 @@ async function tryExtractFromIframe(src, referer) {
         const found = html.match(STREAM_RE);
         if (found?.length) {
             const m3u8 = found.find(u => u.includes('.m3u8'));
-            return { streamUrl: m3u8 || found[0], iframeSrc: src };
+            if (m3u8) {
+                return { streamUrl: m3u8, iframeSrc: src };
+            }
+            // If only FLV found, rewrite to M3U8 format for iOS compatibility
+            const flv = found[0];
+            const rewritten = flv.replace(/\.flv(\?.*)?$/, '/index.m3u8$1');
+            return { streamUrl: rewritten, iframeSrc: src };
         }
     } catch (err) {
         console.warn(`[extract] iframe fetch failed (${src}): ${err.message}`);
@@ -429,12 +435,15 @@ async function _doExtractM3u8(targetUrl, timeoutMs) {
         }
 
         // Intercept early stream URLs
-        let earlyStream = null;
+        let earlyStreamM3u8 = null;
+        let earlyStreamFlv = null;
         const captureEarly = (url) => {
             try {
                 const parsed = new URL(url);
-                if (parsed.pathname.endsWith('.m3u8') || parsed.pathname.endsWith('.flv')) {
-                    earlyStream = url;
+                if (parsed.pathname.endsWith('.m3u8')) {
+                    earlyStreamM3u8 = url;
+                } else if (parsed.pathname.endsWith('.flv')) {
+                    earlyStreamFlv = url;
                 }
             } catch {
                 // Ignore invalid URLs
@@ -461,11 +470,17 @@ async function _doExtractM3u8(targetUrl, timeoutMs) {
                 console.log('[extract] Clicked play button on xoilac stream page');
             } catch { /* autoplay */ }
 
-            // Wait up to 12s for stream URL
+            // Wait up to 12s for M3U8 stream URL
             const deadline = Date.now() + 12000;
-            while (!earlyStream && Date.now() < deadline) {
+            while (!earlyStreamM3u8 && Date.now() < deadline) {
                 await page.waitForTimeout(500);
             }
+        }
+
+        let earlyStream = earlyStreamM3u8;
+        if (!earlyStream && earlyStreamFlv) {
+            console.log(`[extract] Only found FLV: ${earlyStreamFlv}. Converting to M3U8 for iOS compatibility...`);
+            earlyStream = earlyStreamFlv.replace(/\.flv(\?.*)?$/, '/index.m3u8$1');
         }
 
         if (earlyStream) {
