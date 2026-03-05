@@ -5,7 +5,7 @@
 const { Router } = require('express');
 const https = require('https');
 const http = require('http');
-const { extractM3u8, fetchXoilaczMatches, extractLeagues, prefetchLiveStreams } = require('./scraper');
+const { fetchGavangMatches, extractGavangStream, clearCache } = require('./scraper_gavang');
 
 const router = Router();
 
@@ -17,23 +17,49 @@ router.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'nhunghoa-h5n1-be', timestamp: new Date().toISOString() });
 });
 
+// ── Clear Cache ────────────────────────────────────────────────────────────────
+router.get('/api/clear-cache', (_req, res) => {
+    clearCache();
+    res.json({ success: true, message: 'Cache cleared. Next request will re-fetch from GavangTV.' });
+});
+
 // ── Match listing ─────────────────────────────────────────────────────────────
-// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}
+// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false
 router.get('/api/matches', async (req, res) => {
-    const { filter = 'all', league = '' } = req.query;
+    const { filter = 'all', league = '', loadMore = 'false' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
+    const isLoadMore = loadMore === 'true';
 
-    console.log(`[matches] filter=${safeFilter} league=${league || 'all'}`);
+    console.log(`[matches] filter=${safeFilter} league=${league || 'all'} loadMore=${isLoadMore}`);
     const start = Date.now();
 
     try {
-        const matches = await fetchXoilaczMatches(safeFilter, league);
-        const elapsed = Date.now() - start;
-        console.log(`[matches] ✓ ${matches.length} matches in ${elapsed}ms`);
+        let matches = [];
 
-        // Leagues list from current match data (for filter dropdown)
-        const leagues = extractLeagues(matches);
+        const payload = await fetchGavangMatches(isLoadMore);
+        const allMatches = payload.matches || [];
+        matches = allMatches;
+        if (safeFilter === 'live') {
+            matches = allMatches.filter(m => m.status === 'Trực tiếp');
+        } else if (safeFilter === 'hot') {
+            matches = allMatches.filter(m => m.isHot);
+        }
+        if (league && league !== 'all') {
+            matches = matches.filter(m => m.league === league);
+        }
+
+        const elapsed = Date.now() - start;
+        console.log(`[matches] ✓ ${matches.length} matches in ${elapsed}ms (source: gavang)`);
+
+        // Extract leagues manually since extractLeagues was in scraper.js
+        const leaguesMap = new Map();
+        matches.forEach(m => {
+            if (m.league && !leaguesMap.has(m.league)) {
+                leaguesMap.set(m.league, { id: m.league, name: m.league, logo: m.leagueLogo || '' });
+            }
+        });
+        const leagues = Array.from(leaguesMap.values());
 
         // Pre-fetch live stream URLs in background (disabled to prevent Render OOM on Free tier)
         // const liveUrls = matches
@@ -41,7 +67,7 @@ router.get('/api/matches', async (req, res) => {
         //     .map(m => m.sourceUrl);
         // prefetchLiveStreams(liveUrls);
 
-        return res.json({ success: true, matches, leagues, elapsedMs: elapsed });
+        return res.json({ success: true, source: 'gavang', matches, hasMore: payload.hasMore || false, leagues, elapsedMs: elapsed });
     } catch (err) {
         const elapsed = Date.now() - start;
         console.error(`[matches] ✗ Error after ${elapsed}ms: ${err.message}`);
@@ -52,21 +78,27 @@ router.get('/api/matches', async (req, res) => {
 // ── M3U8 stream extractor ─────────────────────────────────────────────────────
 // GET /api/extract?url=https://fshcgroup.com/truc-tiep/...
 router.get('/api/extract', async (req, res) => {
-    const { url } = req.query;
+    const { url, server } = req.query;
     if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
     try { new URL(url); } catch { return res.status(400).json({ success: false, error: 'Invalid URL' }); }
 
-    console.log(`[extract] Extracting stream from → ${url}`);
+    console.log(`[extract] Extracting stream from → ${url} (source: gavang)`);
     const start = Date.now();
 
     try {
-        const result = await extractM3u8(url);
+        let result = await extractGavangStream(url, server);
+
+        if (!result) {
+            throw new Error("Không thể trích xuất stream từ GavangTV");
+        }
+
         const elapsed = Date.now() - start;
         console.log(`[extract] ✓ Found stream in ${elapsed}ms → ${result.streamUrl}`);
         return res.json({
             success: true,
             streamUrl: result.streamUrl,
             iframeSrc: result.iframeSrc || '',
+            servers: result.servers || [],
             source: url,
             elapsedMs: elapsed,
         });
@@ -99,6 +131,7 @@ router.get('/api/proxy', (req, res) => {
         'cdn.', '.cdn', 'live.', '.live',
         'fshcgroup.com', 'xoilacz',
         'sportliveapiz.com',
+        'fastestcdn-global.com', 'gv05'
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
     if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);

@@ -8,6 +8,7 @@ interface VideoPlayerProps {
     match: Match;
     streamUrl: string;   // May be an iframe player URL or a raw m3u8/flv URL
     activeServer: string;
+    availableServers: string[];
     onServerChange: (server: string) => void;
     onClose: () => void;
 }
@@ -23,7 +24,7 @@ function isIframePlayerUrl(url: string): boolean {
     return true;
 }
 
-export default function VideoPlayer({ match, streamUrl, activeServer, onServerChange, onClose }: VideoPlayerProps) {
+export default function VideoPlayer({ match, streamUrl, activeServer, availableServers, onServerChange, onClose }: VideoPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -167,19 +168,25 @@ export default function VideoPlayer({ match, streamUrl, activeServer, onServerCh
                         Toàn màn hình
                     </button>
 
-                    {/* Server buttons */}
-                    {['1', '2'].map((s) => (
-                        <button
-                            key={s}
-                            onClick={() => onServerChange(s)}
-                            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border whitespace-nowrap ${activeServer === s
-                                ? 'bg-accent text-black border-accent shadow-[0_0_10px_var(--color-accent)]'
-                                : 'bg-background/70 text-foreground/70 border-border hover:bg-surface-hover hover:text-foreground'
-                                }`}
-                        >
-                            Máy chủ {s}
-                        </button>
-                    ))}
+                    {/* Server buttons (Dropdown) */}
+                    {availableServers && availableServers.length > 0 && (
+                        <div className="relative shrink-0">
+                            <select
+                                value={activeServer || availableServers[0]}
+                                onChange={(e) => onServerChange(e.target.value)}
+                                className="appearance-none outline-none border border-border bg-background/70 text-foreground text-xs font-bold rounded-lg pl-3 pr-8 py-1.5 hover:bg-surface-hover focus:bg-accent focus:text-black hover:border-accent focus:border-accent transition-all cursor-pointer shadow-sm"
+                            >
+                                {availableServers.map((s, idx) => (
+                                    <option key={s + idx} value={s} className="bg-background text-foreground font-semibold py-1">
+                                        {s}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-foreground/70">
+                                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Close */}
                     <button
