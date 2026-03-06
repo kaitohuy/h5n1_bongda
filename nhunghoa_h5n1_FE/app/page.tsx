@@ -21,17 +21,19 @@ export default function Home() {
   const [isFetchingMore, setIsFetchingMore] = useState<'hot' | 'live' | null>(null);
   const [error, setError] = useState('');
 
+  const [showAllHot, setShowAllHot] = useState(false);
+  const [showAllLive, setShowAllLive] = useState(false);
+
   // ── Fetch ALL matches from BE ──────────────────────────────────────────────
   const fetchAllMatches = useCallback(async (loadMore: boolean = false) => {
     if (!loadMore) setIsLoading(true);
     setError('');
     try {
       const params = new URLSearchParams({ filter: 'all', loadMore: loadMore ? 'true' : 'false' });
-      const res = await fetch(`${BE_URL}/api/matches?${params}`, { cache: 'no-store' });
+      const res = await fetch(`${BE_URL}/api/matches?${params}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Lỗi lấy dữ liệu');
       setHasMoreBackend(Boolean(data.hasMore));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw: Match[] = (data.matches || []).map((m: any) => ({
         id: String(m.id),
         home: String(m.home || 'Đội nhà'),
@@ -74,6 +76,8 @@ export default function Home() {
     // 1. Fetch lại toàn bộ với chế độ loadMore (sẽ lấy từ cache full hoặc quét full)
     await fetchAllMatches(true);
     // 2. Mở khóa display logic
+    if (section === 'hot') setShowAllHot(true);
+    if (section === 'live') setShowAllLive(true);
     setIsFetchingMore(null);
   }, [fetchAllMatches]);
 
@@ -88,7 +92,7 @@ export default function Home() {
         query.set('url', activeMatch.sourceUrl);
         if (activeServer) query.set('server', activeServer);
 
-        const res = await fetch(`${BE_URL}/api/extract?${query.toString()}`, { cache: 'no-store' });
+        const res = await fetch(`${BE_URL}/api/extract?${query.toString()}`);
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         if (mounted) {
@@ -119,21 +123,21 @@ export default function Home() {
   // Spotlight Match - ưu tiên: 1) hot+live, 2) hot bắt kỳ, 3) live bất kỳ, 4) trận đầu tiên
   const spotlightMatch = useMemo(() => {
     return (
-      matches.find((m: Match) => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
-      matches.find((m: Match) => m.isHot || m.section === 'hot') ||
-      matches.find((m: Match) => m.status === 'Trực tiếp' || m.section === 'live') ||
+      matches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
+      matches.find(m => m.isHot || m.section === 'hot') ||
+      matches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
       matches[0] || null
     );
   }, [matches]);
 
   // Hot Matches (excluding the spotlight)
   const hotMatches = useMemo(() => {
-    return matches.filter((m: Match) => (m.isHot || m.section === 'hot') && m.id !== spotlightMatch?.id);
+    return matches.filter(m => (m.isHot || m.section === 'hot') && m.id !== spotlightMatch?.id);
   }, [matches, spotlightMatch]);
 
   // Live Matches (excluding the spotlight)
   const liveMatches = useMemo(() => {
-    return matches.filter((m: Match) => (m.status === 'Trực tiếp' || m.section === 'live') && m.id !== spotlightMatch?.id);
+    return matches.filter(m => (m.status === 'Trực tiếp' || m.section === 'live') && m.id !== spotlightMatch?.id);
   }, [matches, spotlightMatch]);
 
 

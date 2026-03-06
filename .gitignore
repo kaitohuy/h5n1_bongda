@@ -1,0 +1,52 @@
+# ===== NODE MODULES =====
+node_modules/
+
+# ===== DEBUG / DUMP FILES =====
+debug-*.json
+*-dump.*
+large-*.txt
+network-logs.txt
+*-out.txt
+*-out.json
+*.log
+
+# ===== SCRAPER OUTPUT / TEMP FILES =====
+gavang-matches.json
+detail_live.json
+live-matches-dom.json
+match-attrs.json
+xoilac-intercept.json
+xoilac-apis-dump.json
+leeds.json
+check-api.js
+
+# ===== HTML DEBUG SNAPSHOTS =====
+bf-dom.html
+bf.html
+bf-apis.txt
+gavang-home.html
+match-node*.html
+xoilac-full*.html
+xoilac-text.txt
+
+# ===== SCREENSHOTS / IMAGES (debug) =====
+*.png
+xoilac-preview.png
+xoilac-screenshot.png
+
+# ===== SENSITIVE / CONFIG FILES =====
+keys.txt
+.env
+.env.local
+.env.*.local
+
+# ===== BUILD OUTPUT =====
+.next/
+dist/
+build/
+out/
+
+# ===== OS & EDITOR =====
+.DS_Store
+Thumbs.db
+.vscode/settings.json

@@ -49,10 +49,9 @@ export default function VideoPlayer({ match, streamUrl, activeServer, availableS
         let hls: import('hls.js').default | null = null;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let flvPlayer: any = null;
-        const currentVideo = videoRef.current;
 
         const setupPlayer = async () => {
-            const video = currentVideo!;
+            const video = videoRef.current!;
             const isFlv = streamUrl.includes('.flv');
 
             if (isFlv) {
@@ -114,10 +113,10 @@ export default function VideoPlayer({ match, streamUrl, activeServer, availableS
         return () => {
             hls?.destroy();
             flvPlayer?.destroy();
-            if (currentVideo) {
-                currentVideo.pause();
-                currentVideo.removeAttribute('src');
-                currentVideo.load();
+            if (videoRef.current) {
+                videoRef.current.pause();
+                videoRef.current.removeAttribute('src');
+                videoRef.current.load();
             }
         };
     }, [streamUrl, useIframe]);
@@ -129,13 +128,12 @@ export default function VideoPlayer({ match, streamUrl, activeServer, availableS
         if (document.fullscreenElement) {
             document.exitFullscreen();
         } else {
-            const t = target as unknown as Record<string, () => void>;
             if (target.requestFullscreen) {
                 target.requestFullscreen().catch(console.error);
-            } else if (t.webkitRequestFullscreen) {
-                t.webkitRequestFullscreen();
-            } else if (t.msRequestFullscreen) {
-                t.msRequestFullscreen();
+            } else if ((target as any).webkitRequestFullscreen) {
+                (target as any).webkitRequestFullscreen();
+            } else if ((target as any).msRequestFullscreen) {
+                (target as any).msRequestFullscreen();
             }
         }
     };

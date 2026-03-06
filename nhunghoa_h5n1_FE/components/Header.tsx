@@ -11,7 +11,6 @@ interface HeaderProps {
 export default function Header({ onLogoClick }: HeaderProps) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
-    // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
     return (
