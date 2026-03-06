@@ -11,6 +11,7 @@ interface HeaderProps {
 export default function Header({ onLogoClick }: HeaderProps) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+    // eslint-disable-next-line
     useEffect(() => { setMounted(true); }, []);
 
     return (
@@ -46,18 +47,18 @@ export default function Header({ onLogoClick }: HeaderProps) {
 
                 {/* ── Right actions ── */}
                 <div className="flex items-center gap-1">
+
                     {/* Search button (placeholder — có thể gắn modal sau) */}
                     <button
                         className="
-                            flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium
+                            flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium
                             text-foreground/60 hover:text-foreground bg-[var(--header-btn-bg)] hover:bg-[var(--header-btn-hover)]
                             border border-transparent hover:border-border-theme
                             transition-all duration-150
                         "
                         aria-label="Tìm kiếm"
                     >
-                        <Search size={16} />
-                        <span className="hidden sm:inline">Tìm kiếm</span>
+                        <Search size={18} />
                     </button>
 
                     {/* Theme toggle */}

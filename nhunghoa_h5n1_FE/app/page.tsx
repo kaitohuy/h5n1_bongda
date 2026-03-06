@@ -21,9 +21,6 @@ export default function Home() {
   const [isFetchingMore, setIsFetchingMore] = useState<'hot' | 'live' | null>(null);
   const [error, setError] = useState('');
 
-  const [showAllHot, setShowAllHot] = useState(false);
-  const [showAllLive, setShowAllLive] = useState(false);
-
   // ── Fetch ALL matches from BE ──────────────────────────────────────────────
   const fetchAllMatches = useCallback(async (loadMore: boolean = false) => {
     if (!loadMore) setIsLoading(true);
@@ -34,6 +31,7 @@ export default function Home() {
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Lỗi lấy dữ liệu');
       setHasMoreBackend(Boolean(data.hasMore));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const raw: Match[] = (data.matches || []).map((m: any) => ({
         id: String(m.id),
         home: String(m.home || 'Đội nhà'),
@@ -76,8 +74,6 @@ export default function Home() {
     // 1. Fetch lại toàn bộ với chế độ loadMore (sẽ lấy từ cache full hoặc quét full)
     await fetchAllMatches(true);
     // 2. Mở khóa display logic
-    if (section === 'hot') setShowAllHot(true);
-    if (section === 'live') setShowAllLive(true);
     setIsFetchingMore(null);
   }, [fetchAllMatches]);
 
