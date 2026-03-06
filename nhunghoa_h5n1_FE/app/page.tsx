@@ -27,7 +27,7 @@ export default function Home() {
     setError('');
     try {
       const params = new URLSearchParams({ filter: 'all', loadMore: loadMore ? 'true' : 'false' });
-      const res = await fetch(`${BE_URL}/api/matches?${params}`);
+      const res = await fetch(`${BE_URL}/api/matches?${params}`, { cache: 'no-store' });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Lỗi lấy dữ liệu');
       setHasMoreBackend(Boolean(data.hasMore));
@@ -88,7 +88,7 @@ export default function Home() {
         query.set('url', activeMatch.sourceUrl);
         if (activeServer) query.set('server', activeServer);
 
-        const res = await fetch(`${BE_URL}/api/extract?${query.toString()}`);
+        const res = await fetch(`${BE_URL}/api/extract?${query.toString()}`, { cache: 'no-store' });
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         if (mounted) {

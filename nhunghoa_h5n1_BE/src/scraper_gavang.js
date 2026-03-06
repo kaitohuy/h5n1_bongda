@@ -110,6 +110,14 @@ async function fetchGavangMatches(loadMore = false) {
         // Chờ JS render (2.5s — đủ cho Cloudflare challenge)
         await page.waitForTimeout(2500);
 
+        // Kể cả không loadMore, web nguồn có thể dùng Lazy-rendering. Ta cần cuộn nhẹ xuống
+        await page.evaluate(async () => {
+            window.scrollBy(0, document.body.scrollHeight / 2);
+            await new Promise(r => setTimeout(r, 500));
+            window.scrollBy(0, document.body.scrollHeight);
+            await new Promise(r => setTimeout(r, 500));
+        });
+
         // Chỉ click "Xem thêm" khi người dùng thực sự yêu cầu loadMore
         if (loadMore) {
             try {
