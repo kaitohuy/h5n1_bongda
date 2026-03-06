@@ -1,2 +1,20 @@
-nhunghoa_h5n1_BE/node_modules/
+node_modules/
 .env
+
+# Ignored dump files and network logs
+*.html
+*.json
+*.txt
+*.png
+
+# Ignore test scripts
+debug-*.js
+check-api.js
+test-*.js
+
+# Keep package files
+!package.json
+!package-lock.json
+
+# Keep src
+!src/
