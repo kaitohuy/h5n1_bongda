@@ -119,21 +119,21 @@ export default function Home() {
   // Spotlight Match - ưu tiên: 1) hot+live, 2) hot bắt kỳ, 3) live bất kỳ, 4) trận đầu tiên
   const spotlightMatch = useMemo(() => {
     return (
-      matches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
-      matches.find(m => m.isHot || m.section === 'hot') ||
-      matches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
+      matches.find((m: Match) => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
+      matches.find((m: Match) => m.isHot || m.section === 'hot') ||
+      matches.find((m: Match) => m.status === 'Trực tiếp' || m.section === 'live') ||
       matches[0] || null
     );
   }, [matches]);
 
   // Hot Matches (excluding the spotlight)
   const hotMatches = useMemo(() => {
-    return matches.filter(m => (m.isHot || m.section === 'hot') && m.id !== spotlightMatch?.id);
+    return matches.filter((m: Match) => (m.isHot || m.section === 'hot') && m.id !== spotlightMatch?.id);
   }, [matches, spotlightMatch]);
 
   // Live Matches (excluding the spotlight)
   const liveMatches = useMemo(() => {
-    return matches.filter(m => (m.status === 'Trực tiếp' || m.section === 'live') && m.id !== spotlightMatch?.id);
+    return matches.filter((m: Match) => (m.status === 'Trực tiếp' || m.section === 'live') && m.id !== spotlightMatch?.id);
   }, [matches, spotlightMatch]);
 
 
