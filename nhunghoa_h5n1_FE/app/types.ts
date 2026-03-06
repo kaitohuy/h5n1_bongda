@@ -14,6 +14,7 @@ export interface Match {
     homeScore: number | null;
     awayScore: number | null;
     isHot: boolean;
+    section?: string;
     sourceUrl: string;
 }
 
