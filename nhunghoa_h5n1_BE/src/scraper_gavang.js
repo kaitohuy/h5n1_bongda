@@ -184,21 +184,57 @@ async function fetchGavangMatches(loadMore = false) {
                 // Or: Live | Indonesian Liga 1 | Makassar | 2 | - | 4 | Tangerang | 20:30 02/03
 
                 const statusType = texts[0] || 'Sắp đấu';
+                // Scan all texts for live/ht/ft indicator — texts[0] might be 'HOT' badge for hot+live matches
+                const isLiveByText = texts.some(t => t.toLowerCase() === 'live' || t.toLowerCase() === 'trực tiếp');
                 let mappedStatus = 'Sắp tới';
-                if (statusType.toLowerCase().includes('live') || currentSection === 'live') {
+                if (isLiveByText || currentSection === 'live') {
                     mappedStatus = 'Trực tiếp';
                 }
-                if (statusType.toLowerCase().includes('ht') || statusType.toLowerCase().includes('ft')) {
+                const allTextsLower = texts.join(' ').toLowerCase();
+                if (allTextsLower.includes(' ht ') || allTextsLower.includes(' ft ') ||
+                    statusType.toLowerCase() === 'ht' || statusType.toLowerCase() === 'ft') {
                     mappedStatus = 'Đã kết thúc';
                 }
 
-                const league = texts[1] || '';
+                // texts[1..3] có thể là phút thi đấu (e.g. '73\'', '65\u2032', '45+2\'')
+                // Mở rộng regex: bao gồm prime \u2032, hầu hết các dạng dấu nháy
+                // Scan nhiều vị trí vì badge HOT/SUPERHOT có thể đẩy minute sang phải
+                // texts[] chứa phút thi đấu (e.g. '73\'', '65\u2032') và tên giải đấu
+                // Tách biệt: minute PHẢI có ký tự phút ở cuối; league là text đầu tiên không phải status/time/minute/số
+                const minutePattern = /^\d{1,3}([+]\d{0,2})?['\u2019\u2032\u0060]$/;
+                const STATUS_WORDS_RE = /^(live|tr\u1ef1c ti\u1ebfp|s\u1eafp \u0111\u1ea5u|hot|superhot|super hot|ht|ft|k\u1ebft th\u00fac)$/i;
+                const TIME_RE = /^\d{2}:\d{2}/;
+                let gameMinute = '';
+                // Tìm minute trong texts[1..4]
+                for (let mi = 1; mi <= 4; mi++) {
+                    if (texts[mi] && minutePattern.test(texts[mi].trim())) {
+                        gameMinute = texts[mi].trim();
+                        break;
+                    }
+                }
+                // Nếu tìm được phút thi đấu → trận chắc chắn đang live
+                const isLive = isLiveByText || !!gameMinute || currentSection === 'live';
+                if (isLive && mappedStatus !== '\u0110\u00e3 k\u1ebft th\u00fac') {
+                    mappedStatus = 'Tr\u1ef1c ti\u1ebfp';
+                }
+                // Tìm tên giải đấu: text đầu tiên không phải status word, không phải time, không phải minute, không phải số thuần túy
+                const league = texts.find(t => {
+                    const s = t.trim();
+                    return s.length >= 3
+                        && !STATUS_WORDS_RE.test(s)
+                        && !TIME_RE.test(s)
+                        && !minutePattern.test(s)
+                        && !/^\d+$/.test(s)
+                        && !/^[-\u2013\u2014:]$/.test(s);
+                }) || '';
 
                 // time regex \d{2}:\d{2} \d{2}/\d{2}
                 const timeIndex = texts.findIndex(t => /\d{2}:\d{2}\s+\d{2}\/\d{2}/.test(t)) || texts.findIndex(t => /\d{2}:\d{2}/.test(t));
                 const timeStr = timeIndex !== -1 && timeIndex !== false && timeIndex !== true ? texts[timeIndex] : '--:--';
                 const timeMatch = timeStr ? timeStr.match(/(\d{2}:\d{2})/) : null;
                 const time = timeMatch ? timeMatch[1] : '--:--';
+                const dateMatch = timeStr ? timeStr.match(/(\d{2}\/\d{2})/) : null;
+                const date = dateMatch ? dateMatch[1] : '';
 
                 // Parse teams from URL slug: /truc-tiep/home-team-vs-away-team-id
                 const slugMatch = link.match(/\/truc-tiep\/(.+?)-vs-(.+?)-[a-z0-9]+$/);
@@ -210,23 +246,46 @@ async function fetchGavangMatches(loadMore = false) {
                 }
 
                 // ── Parse score từ innerText thô ────────────────────────────────
-                // Cách 1: tìm score element (nếu có class riêng)
                 let homeScore = null;
                 let awayScore = null;
 
-                const scoreEl = el.querySelector('[class*="score"], [class*="Score"], [class*="result"], [class*="Result"]');
+                // Cách 1a: tìm score element theo class phổ biến
+                const scoreEl = el.querySelector('[class*="score"], [class*="Score"], [class*="result"], [class*="Result"], [class*="ty-so"], [class*="tiso"], [class*="sbd"]');
                 if (scoreEl) {
                     const scoreText = scoreEl.innerText || scoreEl.textContent || '';
-                    const m = scoreText.match(/(\d+)\s*[:\-–]\s*(\d+)/);
+                    const m = scoreText.match(/(\d+)\s*[:\-\u2013\u2014]\s*(\d+)/);
                     if (m) {
                         homeScore = parseInt(m[1], 10);
                         awayScore = parseInt(m[2], 10);
                     }
                 }
 
-                // Cách 2: fallback — tìm trong texts array dấu '-' thuần ASCII có số ở 2 bên
+                // Cách 1b: tìm 2 span/div số nằm kề nhau, cách nhau bởi dấu '-' hoặc ':'
                 if (homeScore === null) {
-                    const dashIndex = texts.indexOf('-');
+                    const numEls = Array.from(el.querySelectorAll('span, div, b, strong')).filter(e => /^\d+$/.test((e.innerText || e.textContent || '').trim()));
+                    if (numEls.length >= 2) {
+                        // Tìm cặp số liên tiếp gần nhau trong DOM (bên trái & bên phải của separator)
+                        for (let ni = 0; ni < numEls.length - 1; ni++) {
+                            const a = parseInt((numEls[ni].innerText || '').trim(), 10);
+                            const b = parseInt((numEls[ni + 1].innerText || '').trim(), 10);
+                            if (!isNaN(a) && !isNaN(b)) {
+                                // Kiểm tra giữa 2 số có ký tự separator không
+                                const between = numEls[ni].nextSibling;
+                                const betweenText = between ? (between.textContent || '').trim() : '';
+                                if (!betweenText || /^[:\-\u2013\u2014\s]+$/.test(betweenText)) {
+                                    homeScore = a;
+                                    awayScore = b;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Cách 2: tìm trong texts[] dấu '-' hoặc các Unicode dash, có số ở 2 bên
+                if (homeScore === null) {
+                    // Tìm index của dấu separator (-, –, —, :) đứng riêng trong mảng
+                    const dashIndex = texts.findIndex(t => /^[\-\u2013\u2014:]$/.test(t.trim()));
                     if (dashIndex > 0) {
                         const prevText = (texts[dashIndex - 1] || '').trim();
                         const nextText = (texts[dashIndex + 1] || '').trim();
@@ -237,10 +296,10 @@ async function fetchGavangMatches(loadMore = false) {
                     }
                 }
 
-                // Cách 3: fallback cuối — scan toàn bộ innerText để tìm pattern "X - Y"
+                // Cách 3: fallback — scan toàn bộ innerText tìm pattern "X - Y" hoặc "X:Y" (bao gồm Unicode dashes)
                 if (homeScore === null) {
-                    const rawText = el.innerText || '';
-                    const m = rawText.match(/\b(\d+)\s*-\s*(\d+)\b/);
+                    const rawText = el.innerText || el.textContent || '';
+                    const m = rawText.match(/\b(\d+)\s*[:\-\u2013\u2014]\s*(\d+)\b/);
                     if (m) {
                         homeScore = parseInt(m[1], 10);
                         awayScore = parseInt(m[2], 10);
@@ -249,6 +308,50 @@ async function fetchGavangMatches(loadMore = false) {
 
                 // Logos (first 2 images are usually badges/hot tags, next 2 are teams)
                 const teamLogos = imgs.filter(src => src.includes('team') || src.includes('flashscore'));
+
+                // Detect "Gà Siêu Mồm" / SUPER HOT — gavang.tv đánh dấu thủ công bằng text hoặc badge ảnh
+                const innerText = (el.innerText || el.textContent || '').toLowerCase();
+                const isSuperHot = innerText.includes('gà siêu') || innerText.includes('ga sieu') ||
+                    imgs.some(src => src.toLowerCase().includes('super'));
+
+                // Tìm tên BLV — tên BLV thường xuất hiện kèm icon 🎧, text "Gà Siêu..."
+                // Lấy text node TRỰC TIẾP (không lấy innerText vì sẽ gộp cả text con)
+                let commentator = '';
+                const NOISE_WORDS = /xem ngay|đặt cược|hot|live|trực tiếp|sắp đấu|lịch|thêm/i;
+
+                // Cách 1: tìm element có class liên quan đến blv/anchor
+                const blvEl = el.querySelector('[class*="blv"], [class*="BLV"], [class*="commentator"], [class*="host"], [class*="ga-sieu"], [class*="anchor"]');
+                if (blvEl) {
+                    // Chỉ lấy text node trực tiếp của element, không lấy text con
+                    let direct = '';
+                    blvEl.childNodes.forEach(n => { if (n.nodeType === 3) direct += n.textContent; });
+                    commentator = direct.replace('🎧', '').trim();
+                }
+
+                // Cách 2: tìm span/div nhỏ nhất chứa "Gà" hoặc "🎧" — ưu tiên leaf node
+                if (!commentator) {
+                    const allEls = Array.from(el.querySelectorAll('span, div, p, a'));
+                    for (const s of allEls) {
+                        // Bỏ qua nếu có nhiều child element (tránh lấy container cha)
+                        if (s.children.length > 1) continue;
+                        // Lấy text trực tiếp (direct text nodes only)
+                        let directText = '';
+                        s.childNodes.forEach(n => { if (n.nodeType === 3) directText += n.textContent; });
+                        directText = directText.replace('🎧', '').trim();
+                        if (!directText) continue;
+                        // Phải bắt đầu bằng "Gà" hoặc "Ga" (case-insensitive)
+                        if (/^G[aà]\s/i.test(directText) && !NOISE_WORDS.test(directText)) {
+                            commentator = directText;
+                            break;
+                        }
+                    }
+                }
+
+                // Cách 3: scan texts[] tìm "Gà ..." pattern (mảng đã tách riêng từng text node)
+                if (!commentator) {
+                    const blvText = texts.find(t => /^G[aà]\s/i.test(t.trim()) && !NOISE_WORDS.test(t));
+                    if (blvText) commentator = blvText.trim();
+                }
 
                 results.push({
                     id: 'gv_' + index + '_' + link.split('-').pop(), // pseudo unique id
@@ -260,12 +363,14 @@ async function fetchGavangMatches(loadMore = false) {
                     leagueLogo: '',
                     league: league,
                     time: time,
-                    date: '', // from timeStr maybe
+                    date: date,
                     status: mappedStatus,
-                    minute: statusType.toLowerCase().includes('live') ? 'LIVE' : '',
+                    minute: isLive ? (gameMinute || 'LIVE') : '',
                     homeScore: homeScore,
                     awayScore: awayScore,
                     isHot: currentSection === 'hot' || imgs.some(src => src.includes('hot')),
+                    isSuperHot: isSuperHot,
+                    commentator: commentator,
                     section: currentSection || 'other',
                     sourceUrl: link.startsWith('http') ? link : base + link
                 });

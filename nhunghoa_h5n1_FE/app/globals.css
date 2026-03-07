@@ -59,6 +59,57 @@
   /* Background hình tròn bọc quanh Logo đội bóng */
   --logo-bg: #7b7f83;
   /* Xám nhạt (Slate 100) */
+
+  /* ═══ MÀU HOT / BLV / XEM NGAY ═══════════════════════════════════════════
+     Màu chủ đạo cho các phần tử "nóng":
+       - Tiêu đề "TRẬN ĐẤU HOT"
+       - Tên BLV (🎧) trong MatchCard
+       - Nút "Xem ngay" trong MatchCard (khi trận chưa live)
+       - Số phút / HT trong Spotlight khi trận đang đấu
+     Bạn có thể đổi sang bất kỳ màu nào ở đây mà không cần chạm vào TSX.
+     Gợi ý các bộ màu khác:
+       Vàng đậm hơn  → #d97706 / #b45309
+       Cam đỏ        → #ea580c / #c2410c
+       Vàng chanh    → #ca8a04 / #a16207
+  ═══════════════════════════════════════════════════════════════════════════ */
+  --hot: #fc6d00;
+  /* Cam vàng chủ đạo (Orange 500) — dùng cho text, icon */
+  --hot-hover: #ea580c;
+  /* Cam đậm hơn khi hover (Orange 600) */
+  --hot-bg: #fff7ed;
+  /* Nền nhạt cho badge / button (Orange 50) */
+  --hot-border: #fed7aa;
+  /* Viền nhạt (Orange 200) */
+
+  /* ═══ TIME PILL GRADIENT (Light mode) ══════════════════════════════════
+     Nền gradient cho pill Giờ/Ngày.
+     Gợi ý đổi màu:
+       Xanh lam: from #3b82f6 to #06b6d4
+       Tím:      from #8b5cf6 to #ec4899
+  ═══════════════════════════════════════════════════════════════════════ */
+  --time-pill-from: #ffedd5;
+  /* Từ: cam siêu nhạt (Orange 100) */
+  --time-pill-to: #fef9c3;
+  /* Đến: vàng siêu nhạt (Yellow 100) */
+  --time-pill-text: #c2410c;
+  /* Màu chữ (Orange 700) */
+  --time-pill-border: #fed7aa;
+  /* Viền cam nhạt (Orange 200) */
+
+  /* ═══ NỀN SPOTLIGHT (TRẬN SIÊU HOT) ═══════════════════════════════════
+     Nền tối kiểu "lửa" — cố định tối cho cả light và dark mode vì SIÊU HOT
+     luôn hiển thị trên nền đen nhoáng Đổi màu để thay đổi toàn bộ:
+       Xanh \u0111ớm  → from #0c1a2e to #040d18  
+       Tím hồng → from #1a0d2e to #0a0415
+  ════════════════════════════════════════════════════════════════ */
+  --spotlight-bg-from: #c8ec7b;
+  /* Nền lừa: nâu đen tối (Orange 950) */
+  --spotlight-bg-via: #faebcf;
+  /* Giữa: đen ánh vàng */
+  --spotlight-bg-to: #f8966d;
+  /* Tới: gần đen tuyệt đối */
+  --spotlight-border: rgba(249, 115, 22, 0.40);
+  /* Viền cam (Orange 500 @40%) */
 }
 
 .dark {
@@ -97,6 +148,31 @@
   --mc-hover-border: #10b981;
 
   --logo-bg: rgba(255, 255, 255, 0.08);
+
+  /* ═══ MÀU HOT / BLV / XEM NGAY (Dark mode) ════════════════════════════
+     Dark mode dùng tông cam sáng hơn để nổi bật trên nền tối.
+     Bạn có thể chỉnh --hot để đồng nhất cả 2 theme cùng lúc.
+  ═══════════════════════════════════════════════════════════════════════════ */
+  --hot: #fb923c;
+  /* Cam sáng hơn 1 bậc (Orange 400) — nổi trên nền tối */
+  --hot-hover: #f97316;
+  /* Cam tiêu chuẩn khi hover (Orange 500) */
+  --hot-bg: rgba(249, 115, 22, 0.12);
+  /* Nền cam mờ (12% opacity) */
+  --hot-border: rgba(249, 115, 22, 0.35);
+  /* Viền cam mờ (35% opacity) */
+
+  /* ═══ TIME PILL GRADIENT (Dark mode) ═══════════════════════════════════
+     Nền gradient cho pill Giờ/Ngày trên MatchCard và Spotlight.
+     Đổi màu tại đây để thay đổi toàn bộ.
+  ═══════════════════════════════════════════════════════════════════════ */
+  --time-pill-from: rgba(249, 115, 22, 0.20);
+  /* Từ: cam nhạt (Orange 500 @20%) */
+  --time-pill-to: rgba(234, 179, 8, 0.20);
+  /* Đến: vàng nhạt (Yellow 500 @20%) */
+  --time-pill-text: #fdba74;
+  /* Màu chữ cam sáng (Orange 300) */
+  --time-pill-border: rgba(249, 115, 22, 0.30);
 }
 
 @theme {
@@ -124,6 +200,12 @@
   --color-mc-hover-bg: var(--mc-hover-bg);
   --color-mc-hover-border: var(--mc-hover-border);
   --color-logo-bg: var(--logo-bg);
+
+  /* Màu HOT — dùng trong Tailwind bằng: text-hot, bg-hot, border-hot */
+  --color-hot: var(--hot);
+  --color-hot-hover: var(--hot-hover);
+  --color-hot-bg: var(--hot-bg);
+  --color-hot-border: var(--hot-border);
 }
 
 body {
@@ -142,7 +224,7 @@ body::before {
   left: -10%;
   width: 50vw;
   height: 50vw;
-  background: radial-gradient(circle, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(233, 236, 237, 0.08) 0%, transparent 70%);
   /* Xanh lam loang */
   pointer-events: none;
   z-index: -1;
@@ -191,4 +273,17 @@ body::after {
 
 .animate-in {
   animation: slide-in-top 0.22s ease;
+}
+
+/* ─── Time Pill: gradient cam→vàng dùng cho Giờ/Ngày trên card ─── */
+/* Dùng class này ở element: <span class="time-pill">21:00 07/03</span> */
+.time-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--time-pill-from), var(--time-pill-to));
+  color: var(--time-pill-text);
+  border: 1px solid var(--time-pill-border);
+  font-size: 12px;
+  font-weight: 600;
 }

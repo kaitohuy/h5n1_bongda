@@ -50,6 +50,8 @@ export default function Home() {
         homeScore: m.homeScore !== null && m.homeScore !== undefined ? Number(m.homeScore) : null,
         awayScore: m.awayScore !== null && m.awayScore !== undefined ? Number(m.awayScore) : null,
         isHot: Boolean(m.isHot),
+        isSuperHot: Boolean(m.isSuperHot),
+        commentator: String(m.commentator || ''),
         section: String(m.section || ''),
         sourceUrl: String(m.sourceUrl || ''),
       }));
@@ -66,7 +68,7 @@ export default function Home() {
   }, [fetchAllMatches]);
 
   useEffect(() => {
-    const id = setInterval(() => fetchAllMatches(false), 60_000);
+    const id = setInterval(() => fetchAllMatches(false), 600_000);
     return () => clearInterval(id);
   }, [fetchAllMatches]);
 
@@ -123,6 +125,7 @@ export default function Home() {
   // Spotlight Match - ưu tiên: 1) hot+live, 2) hot bắt kỳ, 3) live bất kỳ, 4) trận đầu tiên
   const spotlightMatch = useMemo(() => {
     return (
+      matches.find(m => m.isSuperHot) ||                                          // ưu tiên cao nhất: trận Gà Siêu Mồm
       matches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
       matches.find(m => m.isHot || m.section === 'hot') ||
       matches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
@@ -130,15 +133,15 @@ export default function Home() {
     );
   }, [matches]);
 
-  // Hot Matches (excluding the spotlight)
+  // Hot Matches
   const hotMatches = useMemo(() => {
-    return matches.filter(m => (m.isHot || m.section === 'hot') && m.id !== spotlightMatch?.id);
-  }, [matches, spotlightMatch]);
+    return matches.filter(m => m.isHot || m.section === 'hot');
+  }, [matches]);
 
-  // Live Matches (excluding the spotlight)
+  // Live Matches
   const liveMatches = useMemo(() => {
-    return matches.filter(m => (m.status === 'Trực tiếp' || m.section === 'live') && m.id !== spotlightMatch?.id);
-  }, [matches, spotlightMatch]);
+    return matches.filter(m => m.status === 'Trực tiếp' || m.section === 'live');
+  }, [matches]);
 
 
 
@@ -189,65 +192,108 @@ export default function Home() {
             {spotlightMatch && (
               <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div
-                  className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-surface to-background shadow-xl hover:shadow-accent/20 border-border hover:border-accent/40 transition-all cursor-pointer group"
+                  className="relative overflow-hidden rounded-2xl border shadow-xl transition-all cursor-pointer group"
+                  style={{
+                    background: `linear-gradient(135deg, var(--spotlight-bg-from) 0%, var(--spotlight-bg-via) 50%, var(--spotlight-bg-to) 100%)`,
+                    borderColor: `var(--spotlight-border)`,
+                    boxShadow: `0 0 40px rgba(249,115,22,0.15), 0 20px 60px rgba(0,0,0,0.5)`
+                  }}
                   onClick={() => handleMatchSelect(spotlightMatch)}
                 >
-                  {/* Decorative neon line on top */}
-                  <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-500 via-amber-500 to-yellow-500 shadow-[0_0_15px_rgba(245,158,11,0.5)]"></div>
+                  {/* Neon line on top */}
+                  <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-600 via-orange-500 to-yellow-400" />
+                  {/* Ember glow blob */}
+                  <div className="absolute inset-0 pointer-events-none"
+                    style={{ background: `radial-gradient(ellipse 60% 40% at 50% 80%, rgba(249,115,22,0.10) 0%, transparent 70%)` }} />
 
-                  <div className="p-6 md:p-10 flex flex-col items-center justify-center min-h-[240px]">
-                    {/* Badge Spotlight */}
-                    <div className="absolute top-4 left-4 lg:top-6 lg:left-6 flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 font-bold uppercase tracking-wider text-xs md:text-sm">
-                      <span className="animate-pulse">🔥</span> TRẬN SIÊU HOT
-                    </div>
+                  <div className="p-6 md:p-10 flex flex-col items-center gap-4 min-h-[260px]">
 
-                    {/* League */}
-                    <div className="flex flex-col items-center gap-2 mb-8 mt-6">
-                      {spotlightMatch.leagueLogo && <img src={spotlightMatch.leagueLogo} alt={spotlightMatch.league} className="w-10 h-10 object-contain drop-shadow-md" />}
-                      <span className="text-sm font-semibold text-foreground/70 text-center uppercase tracking-widest">{spotlightMatch.league}</span>
-                    </div>
-
-                    {/* Main Scoreboard Layout */}
-                    <div className="flex items-center justify-center w-full max-w-3xl gap-4 md:gap-12 relative z-10">
-                      {/* Home */}
-                      <div className="flex flex-col items-center flex-1 gap-3">
-                        <img src={spotlightMatch.homeLogo || '/team-placeholder.png'} className="w-16 h-16 md:w-28 md:h-28 object-contain drop-shadow-2xl group-hover:scale-105 transition-transform" />
-                        <span className="text-base md:text-2xl font-black text-center line-clamp-2 leading-tight">{spotlightMatch.home}</span>
+                    {/* Badge SIÊU HOT (góc trái) + League name (giữa) — chỉ 1 hàng */}
+                    <div className="flex items-center justify-between w-full">
+                      {/* Badge SIÊU HOT */}
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/30 font-bold uppercase tracking-wider text-xs">
+                        <span className="animate-pulse">🔥</span> SIÊU HOT
                       </div>
 
-                      {/* Details */}
-                      <div className="flex flex-col items-center justify-center px-2 md:px-8">
-                        <span className="text-xs md:text-sm font-bold text-accent mb-2 drop-shadow-sm uppercase tracking-widest">
-                          {spotlightMatch.minute || spotlightMatch.time} {spotlightMatch.date}
+                      {/* League ở giữa — luôn có icon */}
+                      <div className="flex items-center gap-2">
+                        {spotlightMatch.leagueLogo ? (
+                          <img src={spotlightMatch.leagueLogo} alt={spotlightMatch.league} className="w-6 h-6 object-contain" />
+                        ) : (
+                          <span className="text-base">⚽</span>
+                        )}
+                        <span className="text-sm font-semibold text-foreground/70 uppercase tracking-widest">
+                          {spotlightMatch.league}
                         </span>
-                        <div className="flex items-center gap-3 md:gap-6 text-4xl md:text-6xl font-black tabular-nums tracking-tighter drop-shadow-md">
-                          <span>{spotlightMatch.homeScore !== null && spotlightMatch.homeScore !== undefined ? spotlightMatch.homeScore : 'VS'}</span>
-                          {(spotlightMatch.homeScore !== null && spotlightMatch.homeScore !== undefined) && (
-                            <span className="text-foreground/20 font-light translate-y-[-2px]">:</span>
-                          )}
-                          <span>{spotlightMatch.awayScore !== null && spotlightMatch.awayScore !== undefined ? spotlightMatch.awayScore : ''}</span>
-                        </div>
+                      </div>
+                    </div>
+
+                    {/* Phút thi đấu */}
+                    {(spotlightMatch.minute || spotlightMatch.status === 'Đã kết thúc') && (
+                      <span className="text-2xl md:text-4xl font-black text-hot tracking-widest">
+                        {spotlightMatch.minute || 'FT'}
+                      </span>
+                    )}
+
+                    {/* Team logos + score (hàng chính) */}
+                    <div className="flex items-center justify-center w-full max-w-3xl gap-6 md:gap-16">
+                      {/* Home */}
+                      <div className="flex flex-col items-center flex-1 gap-3">
+                        <img src={spotlightMatch.homeLogo || '/team-placeholder.png'}
+                          className="w-20 h-20 md:w-32 md:h-32 object-contain drop-shadow-2xl group-hover:scale-105 transition-transform" />
+                        <span className="text-base md:text-2xl font-black text-center line-clamp-2 leading-tight">
+                          {spotlightMatch.home}
+                        </span>
+                      </div>
+
+                      {/* Score */}
+                      <div className="flex items-center gap-3 md:gap-6 text-5xl md:text-7xl font-black tabular-nums tracking-tighter drop-shadow-md flex-shrink-0">
+                        {spotlightMatch.homeScore !== null && spotlightMatch.homeScore !== undefined ? (
+                          <>
+                            <span className="text-red-500">{spotlightMatch.homeScore}</span>
+                            <span className="text-red-500 font-bold text-4xl md:text-5xl translate-y-[-2px]">:</span>
+                            <span className="text-red-500">{spotlightMatch.awayScore !== null && spotlightMatch.awayScore !== undefined ? spotlightMatch.awayScore : ''}</span>
+                          </>
+                        ) : (
+                          <span className="text-4xl md:text-5xl">VS</span>
+                        )}
                       </div>
 
                       {/* Away */}
                       <div className="flex flex-col items-center flex-1 gap-3">
-                        <img src={spotlightMatch.awayLogo || '/team-placeholder.png'} className="w-16 h-16 md:w-28 md:h-28 object-contain drop-shadow-2xl group-hover:scale-105 transition-transform" />
-                        <span className="text-base md:text-2xl font-black text-center line-clamp-2 leading-tight">{spotlightMatch.away}</span>
+                        <img src={spotlightMatch.awayLogo || '/team-placeholder.png'}
+                          className="w-20 h-20 md:w-32 md:h-32 object-contain drop-shadow-2xl group-hover:scale-105 transition-transform" />
+                        <span className="text-base md:text-2xl font-black text-center line-clamp-2 leading-tight">
+                          {spotlightMatch.away}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/0 via-transparent to-black/5 pointer-events-none mix-blend-overlay"></div>
+                    {/* Time + Date pill (gradient) */}
+                    <span className="time-pill text-sm! px-4! py-1.5!">
+                      {spotlightMatch.time}{spotlightMatch.date ? ` ${spotlightMatch.date}` : ''}
+                    </span>
+
+                    {/* BLV */}
+                    {spotlightMatch.commentator && (
+                      <div className="flex items-center gap-2 text-hot">
+                        <span>🎧</span>
+                        <span className="text-sm font-semibold">{spotlightMatch.commentator}</span>
+                      </div>
+                    )}
                   </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/0 via-transparent to-black/5 pointer-events-none mix-blend-overlay" />
                 </div>
               </section>
             )}
+
 
             {/* 2. Trận Đấu Hot Grid */}
             {hotMatches.length > 0 && (
               <section className="space-y-6 pt-2">
                 <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-6 bg-accent rounded-full mb-0.5 shadow-[0_0_10px_var(--accent-glow)]"></div>
-                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider">TRẬN ĐẤU HOT</h2>
+                  <div className="w-1.5 h-6 bg-hot rounded-full mb-0.5"></div>
+                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-hot">TRẬN ĐẤU HOT</h2>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -278,8 +324,8 @@ export default function Home() {
             {liveMatches.length > 0 && (
               <section className="space-y-6 pt-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-6 bg-emerald-500 rounded-full mb-0.5 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
-                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-emerald-500">ĐANG DIỄN RA</h2>
+                  <div className="w-1.5 h-6 bg-hot rounded-full mb-0.5 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-hot">ĐANG DIỄN RA</h2>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
