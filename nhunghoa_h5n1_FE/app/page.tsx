@@ -14,6 +14,7 @@ export default function Home() {
   const [streamUrl, setStreamUrl] = useState('');
   const [activeServer, setActiveServer] = useState<string>('');
   const [availableServers, setAvailableServers] = useState<string[]>([]);
+  const [loadingStreamMsg, setLoadingStreamMsg] = useState('');
 
   const [matches, setMatches] = useState<Match[]>([]);
   const [hasMoreBackend, setHasMoreBackend] = useState(false);
@@ -84,10 +85,25 @@ export default function Home() {
   }, [fetchAllMatches]);
 
   // ── Fetch stream URL ───────────────────────────────────────────────────────
+  // Các phase loading message hiển thị trong quá trình chờ scraper (~6s)
+  const STREAM_LOADING_PHASES = [
+    { delay: 0, msg: '🔌 Đang kết nối máy chủ...' },
+    { delay: 1500, msg: '🤖 Đang tải trình duyệt ảo...' },
+    { delay: 3000, msg: '⏭️ Đang bỏ qua quảng cáo...' },
+    { delay: 5000, msg: '📡 Đang lấy luồng video...' },
+  ];
+
   useEffect(() => {
     if (!activeMatch?.sourceUrl) return;
     let mounted = true;
     setStreamUrl('');
+    setLoadingStreamMsg(STREAM_LOADING_PHASES[0].msg);
+
+    // Rotate trạng thái loading theo từng phase
+    const timers = STREAM_LOADING_PHASES.slice(1).map(({ delay, msg }) =>
+      setTimeout(() => { if (mounted) setLoadingStreamMsg(msg); }, delay)
+    );
+
     (async () => {
       try {
         const query = new URLSearchParams();
@@ -100,18 +116,19 @@ export default function Home() {
         if (mounted) {
           if (data.servers && data.servers.length > 0) {
             setAvailableServers(data.servers);
-            if (!activeServer && data.servers.length > 0) {
-              // If it's the first load and we don't have an active server, set it to the first one behind the scenes
-              // But wait, the API already returned a stream. Don't worry, UI will show it as active if empty or match.
-            }
           }
           const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
           const cfWorker = process.env.NEXT_PUBLIC_PROXY_URL || 'https://h5n1-proxy.huynguyendoan0305.workers.dev';
           setStreamUrl(`${cfWorker}/?url=${encodeURIComponent(data.streamUrl)}${refParam}`);
+          setLoadingStreamMsg('');
         }
-      } catch (e) { console.error('Stream error:', e); }
+      } catch (e) {
+        console.error('Stream error:', e);
+        if (mounted) setLoadingStreamMsg('❌ Không thể tải luồng. Thử lại sau.');
+      }
+      timers.forEach(clearTimeout);
     })();
-    return () => { mounted = false; };
+    return () => { mounted = false; timers.forEach(clearTimeout); };
   }, [activeMatch, activeServer]);
 
   const handleMatchSelect = (match: Match) => {
@@ -156,10 +173,11 @@ export default function Home() {
             <VideoPlayer
               match={activeMatch}
               streamUrl={streamUrl}
+              loadingMsg={loadingStreamMsg}
               activeServer={activeServer}
               availableServers={availableServers}
               onServerChange={setActiveServer}
-              onClose={() => { setActiveMatch(null); setStreamUrl(''); }}
+              onClose={() => { setActiveMatch(null); setStreamUrl(''); setLoadingStreamMsg(''); }}
             />
           </div>
         )}

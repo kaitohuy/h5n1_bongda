@@ -7,6 +7,7 @@ import { Match } from '@/app/types';
 interface VideoPlayerProps {
     match: Match;
     streamUrl: string;   // May be an iframe player URL or a raw m3u8/flv URL
+    loadingMsg: string;  // Phase-based loading message from parent
     activeServer: string;
     availableServers: string[];
     onServerChange: (server: string) => void;
@@ -24,7 +25,7 @@ function isIframePlayerUrl(url: string): boolean {
     return true;
 }
 
-export default function VideoPlayer({ match, streamUrl, activeServer, availableServers, onServerChange, onClose }: VideoPlayerProps) {
+export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer, availableServers, onServerChange, onClose }: VideoPlayerProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -214,7 +215,9 @@ export default function VideoPlayer({ match, streamUrl, activeServer, availableS
                         ) : (
                             <>
                                 <Loader2 className="w-10 h-10 animate-spin text-accent" />
-                                <p className="text-sm font-medium text-white/70">Đang tải luồng video...</p>
+                                <p className="text-sm font-medium text-white/80 animate-pulse">
+                                    {loadingMsg || 'Đang tải luồng video...'}
+                                </p>
                             </>
                         )}
                     </div>

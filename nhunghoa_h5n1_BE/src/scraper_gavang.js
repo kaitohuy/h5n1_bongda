@@ -1,4 +1,4 @@
-const { chromium } = require('playwright-extra');
+﻿const { chromium } = require('playwright-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 chromium.use(StealthPlugin());
@@ -56,6 +56,13 @@ async function getSharedBrowser() {
     return sharedBrowser;
 }
 
+// Keepalive: ping browser dinh ky de tranh bi OS kill giua cac request
+setInterval(async () => {
+    if (sharedBrowser) {
+        try { await sharedBrowser.version(); } catch { sharedBrowser = null; }
+    }
+}, 60 * 1000);
+
 async function createBypassPage(browser) {
     const context = await browser.newContext(CONTEXT_OPTIONS);
     // Hide webdriver to bypass Cloudflare
@@ -67,14 +74,15 @@ async function createBypassPage(browser) {
 
     const page = await context.newPage();
 
-    // Block tracking/guard scripts that cause infinite bot-loops
+    // Block non-essential resources + tracking scripts to speed up page load
     await page.route("**/*", (route) => {
+        const type = route.request().resourceType();
         const url = route.request().url();
-        if (url.includes("guard_v1.js") || url.includes("analytics") || url.includes("google")) {
-            route.abort();
-        } else {
-            route.continue();
+        if (['image', 'media', 'font', 'stylesheet'].includes(type)
+            || url.includes("guard_v1.js") || url.includes("analytics") || url.includes("google")) {
+            return route.abort();
         }
+        return route.continue();
     });
 
     return { context, page };
@@ -107,8 +115,10 @@ async function fetchGavangMatches(loadMore = false) {
         console.log(`[gavang] Fetching homepage matches... (loadMore=${loadMore})`);
         await page.goto(`${GAVANG_BASE}/trang-chu`, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT_MS });
 
-        // Chờ JS render (2.5s — đủ cho Cloudflare challenge)
-        await page.waitForTimeout(2500);
+        // Cho den khi match element thuc su xuat hien (thay vi cho cung 2.5s)
+        await page.waitForSelector('a[href^="/truc-tiep/"]', { timeout: 8000 }).catch(() => {
+            console.log('[gavang] waitForSelector timeout - proceeding anyway');
+        });
 
         // Chỉ click "Xem thêm" khi người dùng thực sự yêu cầu loadMore
         if (loadMore) {
@@ -425,10 +435,11 @@ async function fetchGavangMatches(loadMore = false) {
 }
 
 async function extractGavangStream(targetUrl, requestedServer = null) {
-    let browser = null;
+    let context = null;
     try {
-        browser = await chromium.launch({ headless: true });
-        const { page } = await createBypassPage(browser);
+        const browser = await getSharedBrowser(); // tai su dung shared instance, khong launch moi
+        const { context: ctx, page } = await createBypassPage(browser);
+        context = ctx;
 
         // Abort media requests to save bandwidth during extraction
         await page.route('**/*', (route) => {
@@ -444,24 +455,26 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
 
         let foundM3u8 = null;
         let foundFlv = null;
-        page.on('request', req => {
-            const url = req.url();
+        // Lat ca request va response de bat m3u8/flv URL som nhat co the
+        const captureUrl = (url) => {
             if (url.includes('.m3u8')) foundM3u8 = url;
             else if (url.includes('.flv')) foundFlv = url;
-        });
+        };
+        page.on('request', req => captureUrl(req.url()));
+        page.on('response', resp => captureUrl(resp.url()));
 
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: DEFAULT_TIMEOUT_MS }).catch(() => { });
 
         // GavangTV doesn't have an iframe, they inject player directly or load iframe after click
-        // Click the play button or wait
+        // Giam timeout xuong 500ms de tranh bi block 3s khi selector khong ton tai
         try {
-            await page.click('#player, .play-btn, .vjs-big-play-button', { timeout: 3000 });
+            await page.click('#player, .play-btn, .vjs-big-play-button', { timeout: 500 });
         } catch { }
 
         // wait for initial stream
-        let deadline = Date.now() + 10000;
+        let deadline = Date.now() + 8000; // giam tu 10s xuong 8s
         while (!foundM3u8 && !foundFlv && Date.now() < deadline) {
-            await page.waitForTimeout(500);
+            await page.waitForTimeout(100); // poll nhanh hon 500ms -> 100ms
         }
 
         // Find available servers
@@ -502,9 +515,9 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
             }
 
             if (clicked) {
-                deadline = Date.now() + 10000;
+                deadline = Date.now() + 8000;
                 while (!foundM3u8 && !foundFlv && Date.now() < deadline) {
-                    await page.waitForTimeout(500);
+                    await page.waitForTimeout(100);
                 }
             } else {
                 console.log(`[gavang] Could not click requested server: ${requestedServer}`);
@@ -524,7 +537,8 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
         console.error('[gavang] Error extracting stream:', e.message);
         return null;
     } finally {
-        if (browser) await browser.close();
+        // Chi dong context, giu browser singleton de tai su dung
+        if (context) { try { await context.close(); } catch { } }
     }
 }
 
@@ -537,3 +551,9 @@ module.exports = {
     }
 };
 
+// Pre-warm cache ngay khi module load (server khoi dong)
+// -> request dau tien tu client se duoc serve tu cache thay vi phai cho scrape
+setTimeout(() => {
+    console.log('[gavang] Pre-warming cache on startup...');
+    fetchGavangMatches(false).catch(e => console.error('[gavang] Startup pre-warm failed:', e.message));
+}, 2000);
