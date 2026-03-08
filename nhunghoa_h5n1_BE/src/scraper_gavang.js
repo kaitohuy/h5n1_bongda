@@ -435,11 +435,13 @@ async function fetchGavangMatches(loadMore = false) {
 }
 
 async function extractGavangStream(targetUrl, requestedServer = null) {
-    let context = null;
+    let browser = null;
     try {
-        const browser = await getSharedBrowser(); // tai su dung shared instance, khong launch moi
-        const { context: ctx, page } = await createBypassPage(browser);
-        context = ctx;
+        // Luon launch browser RIENG cho stream extraction
+        // Tranh tranh tai nguyen CPU voi fetchGavangMatches (pre-warm, scraping)
+        // tren Render free tier (0.1 vCPU) - 2 browser contexts chung 1 process se rat cham
+        browser = await chromium.launch({ headless: true });
+        const { page } = await createBypassPage(browser);
 
         // Abort media requests to save bandwidth during extraction
         await page.route('**/*', (route) => {
@@ -472,9 +474,12 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
         } catch { }
 
         // wait for initial stream
-        let deadline = Date.now() + 8000; // giam tu 10s xuong 8s
+        // Render server o US, target site tai VN -> page load cham hon 3-5x
+        // Tang deadline de dam bao m3u8 duoc bat truoc khi loop thoat
+        const POLL_DEADLINE_MS = process.env.RENDER ? 30000 : 8000;
+        let deadline = Date.now() + POLL_DEADLINE_MS;
         while (!foundM3u8 && !foundFlv && Date.now() < deadline) {
-            await page.waitForTimeout(100); // poll nhanh hon 500ms -> 100ms
+            await page.waitForTimeout(100);
         }
 
         // Find available servers
@@ -515,7 +520,7 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
             }
 
             if (clicked) {
-                deadline = Date.now() + 8000;
+                deadline = Date.now() + POLL_DEADLINE_MS;
                 while (!foundM3u8 && !foundFlv && Date.now() < deadline) {
                     await page.waitForTimeout(100);
                 }
@@ -537,8 +542,8 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
         console.error('[gavang] Error extracting stream:', e.message);
         return null;
     } finally {
-        // Chi dong context, giu browser singleton de tai su dung
-        if (context) { try { await context.close(); } catch { } }
+        // Dong toan bo browser rieng sau khi xong
+        if (browser) { try { await browser.close(); } catch { } }
     }
 }
 
