@@ -124,7 +124,7 @@ export default function Home() {
         }
       } catch (e) {
         console.error('Stream error:', e);
-        if (mounted) setLoadingStreamMsg('❌ Không thể tải luồng. Thử lại sau.');
+        if (mounted) setLoadingStreamMsg('❌ Lỗi: Trận đấu chưa phát sóng hoặc luồng bị lỗi.');
       }
       timers.forEach(clearTimeout);
     })();
@@ -160,7 +160,15 @@ export default function Home() {
     return matches.filter(m => m.status === 'Trực tiếp' || m.section === 'live');
   }, [matches]);
 
+  // Upcoming Matches
+  const upcomingMatches = useMemo(() => {
+    return matches.filter(m => !m.isHot && m.section !== 'hot' && m.status !== 'Trực tiếp' && m.section !== 'live' && m.status !== 'Đã kết thúc');
+  }, [matches]);
 
+  // Finished Matches
+  const finishedMatches = useMemo(() => {
+    return matches.filter(m => m.status === 'Đã kết thúc');
+  }, [matches]);
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
@@ -367,6 +375,38 @@ export default function Home() {
                     </button>
                   </div>
                 )}
+              </section>
+            )}
+
+            {/* 4. Trận Đấu Sắp Diễn Ra Grid */}
+            {upcomingMatches.length > 0 && (
+              <section className="space-y-6 pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-blue-500 rounded-full mb-0.5"></div>
+                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-blue-500">SẮP DIỄN RA</h2>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {upcomingMatches.map(match => (
+                    <MatchCard key={match.id} match={match} onClick={handleMatchSelect} isActive={activeMatch?.id === match.id} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* 5. Trận Đấu Đã Kết Thúc */}
+            {finishedMatches.length > 0 && (
+              <section className="space-y-6 pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-gray-500 rounded-full mb-0.5"></div>
+                  <h2 className="text-xl md:text-2xl font-black uppercase tracking-wider text-gray-500">ĐÃ KẾT THÚC</h2>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 opacity-75">
+                  {finishedMatches.map(match => (
+                    <MatchCard key={match.id} match={match} onClick={handleMatchSelect} isActive={activeMatch?.id === match.id} />
+                  ))}
+                </div>
               </section>
             )}
           </>

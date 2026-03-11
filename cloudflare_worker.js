@@ -48,9 +48,15 @@ export default {
         }
 
         // Tính Referer và Origin từ param hoặc suy luận từ target URL
-        const referer = ref ? decodeURIComponent(ref) : `${parsedTarget.protocol}//${parsedTarget.hostname}/`;
+        let referer = ref ? decodeURIComponent(ref) : `${parsedTarget.protocol}//${parsedTarget.hostname}/`;
         let origin;
         try { origin = new URL(referer).origin; } catch { origin = referer; }
+
+        // BẮT BUỘC: Nếu là domain của GavangTV CDN, phải ép Origin là web của họ để tránh 403
+        if (parsedTarget.hostname.includes('fastestcdn') || parsedTarget.hostname.includes('100ycdn')) {
+            origin = 'https://xem1.gv05.live';
+            referer = 'https://xem1.gv05.live/';
+        }
 
         // Xác định loại file để chọn cache TTL
         const pathname = parsedTarget.pathname.toLowerCase();

@@ -89,8 +89,8 @@ export default function MatchCard({ match, onClick, isActive = false }: MatchCar
                 <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
                     {/* Luôn render minute — invisible khi không có để giữ chiều cao card */}
                     <span className={`text-[18px] font-black tracking-widest ${match.minute
-                            ? (isLive ? 'text-hot' : 'text-red-700 dark:text-red-400')
-                            : 'invisible select-none'
+                        ? (isLive ? 'text-hot' : 'text-red-700 dark:text-red-400')
+                        : 'invisible select-none'
                         }`}>
                         {match.minute || '00\''}
                     </span>
@@ -135,10 +135,14 @@ export default function MatchCard({ match, onClick, isActive = false }: MatchCar
             {/* ── Row 5: BLV + Xem ngay ── */}
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-border-theme">
                 <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="text-sm flex-shrink-0">🎧</span>
-                    <span className="text-sm font-semibold text-hot truncate">
-                        {match.commentator || 'BLV'}
-                    </span>
+                    {match.commentator && (
+                        <>
+                            <span className="text-sm flex-shrink-0">🎧</span>
+                            <span className="text-sm font-semibold text-hot truncate">
+                                {match.commentator}
+                            </span>
+                        </>
+                    )}
                 </div>
                 <button
                     className={`flex-shrink-0 flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide transition-all

@@ -48,30 +48,80 @@ function mapStatus(m) {
 
 function parseDate(str) {
     if (!str) return { time: '--:--', date: '' };
-    const m = str.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
-    if (!m) return { time: '--:--', date: '' };
-    return { time: `${m[4]}:${m[5]}`, date: `${m[3]}/${m[2]}` };
+    try {
+        // Fix string if it uses space instead of 'T' (Gavang API is inconsistent)
+        const isoStr = str.replace(' ', 'T');
+        // Ensure UTC parse if valid format
+        const d = new Date(isoStr.endsWith('Z') ? isoStr : isoStr + 'Z');
+        if (isNaN(d)) return { time: '--:--', date: '' };
+
+        // Convert to VN Time
+        return {
+            time: d.toLocaleTimeString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }),
+            date: d.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit' })
+        };
+    } catch {
+        return { time: '--:--', date: '' };
+    }
 }
 
 // ── Fetch match list từ GraphQL API ──────────────────────────────────────────
 async function fetchFromAPI() {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 10000);
+    const t = setTimeout(() => controller.abort(), 15000); // Tăng timeout cho 4 requests
+
+    const payloads = [
+        // 1. Live
+        { limit: 50, page: 1, order_asc: "start_date", queries: [{ field: "is_live", type: "equal", value: true }] },
+        // 2. Hot
+        { limit: 50, page: 1, order_asc: "start_date", queries: [{ field: "is_hot", type: "equal", value: true }] },
+        // 3. Top
+        { limit: 50, page: 1, order_asc: "start_date", queries: [{ field: "is_top", type: "equal", value: true }] },
+        // 4. Hôm nay (All)
+        { limit: 100, page: 1, order_asc: "start_date" }
+    ];
+
     try {
-        const res = await fetch(`${GAVANG_API}/matches/graph`, {
-            method: 'POST',
-            headers: API_HEADERS,
-            body: JSON.stringify({ query: MATCHES_QUERY }),
-            signal: controller.signal,
-        });
+        const fetchPromises = payloads.map(p =>
+            fetch(`${GAVANG_API}/matches/graph`, {
+                method: 'POST',
+                headers: API_HEADERS,
+                body: JSON.stringify({ query: MATCHES_QUERY, ...p }),
+                signal: controller.signal,
+            }).then(r => {
+                if (!r.ok) throw new Error(`API ${r.status}`);
+                return r.json();
+            }).catch(e => {
+                console.error(`[gavang] Payload fetch failed: ${e.message}`);
+                return { data: [] }; // Graceful degrade for individual payload failures
+            })
+        );
+
+        const results = await Promise.all(fetchPromises);
         clearTimeout(t);
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const json = await res.json();
-        const arr = json.data || json.matches || [];
-        if (!Array.isArray(arr)) throw new Error('API returned non-array');
+
+        let allMatches = [];
+        let seenIds = new Set();
+
+        for (const json of results) {
+            const arr = json.data || json.matches || [];
+            if (Array.isArray(arr)) {
+                for (const m of arr) {
+                    if (!seenIds.has(m.id)) {
+                        seenIds.add(m.id);
+                        allMatches.push(m);
+                    }
+                }
+            }
+        }
+
+        if (allMatches.length === 0) throw new Error('API returned no matches across all payloads');
 
         // Chỉ lấy FOOTBALL
-        const football = arr.filter(m => !m.desc || m.desc.toUpperCase() === 'FOOTBALL');
+        const football = allMatches.filter(m => !m.desc || m.desc.toUpperCase() === 'FOOTBALL');
+
+        // Sort by start date to maintain order
+        football.sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
 
         return football.map((m, i) => {
             const { time, date } = parseDate(m.start_date);
@@ -163,6 +213,25 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
                 if (requestedServer === "Server 2") finalUrl = data.hd_2 || data.sd_2 || finalUrl;
                 if (requestedServer === "Server 3") finalUrl = data.hd_3 || data.sd_3 || finalUrl;
 
+                // BƯỚC QUAN TRỌNG: Lấy Token m3u8 (wsSession)
+                // Gavang CDN trả về file master m3u8, bên trong chứa link thật kèm wsSession
+                try {
+                    const m3u8Res = await fetch(finalUrl, { headers: API_HEADERS });
+                    if (m3u8Res.ok) {
+                        const m3u8Text = await m3u8Res.text();
+                        const lines = m3u8Text.split('\n');
+                        // Tìm dòng chứa link thật (thường bắt đầu bằng http)
+                        const trueUrlLine = lines.find(line => line.trim().startsWith('http'));
+                        if (trueUrlLine) {
+                            console.log(`[gavang] Extracted true stream with token: ${trueUrlLine}`);
+                            return { streamUrl: trueUrlLine.trim(), iframeSrc: null, servers: availableServers };
+                        }
+                    }
+                } catch (innerError) {
+                    console.log(`[gavang] Failed to extract inner m3u8 token: ${innerError.message}`);
+                }
+
+                // Fallback: Trả về link gốc nếu không lấy được
                 return { streamUrl: finalUrl, iframeSrc: null, servers: availableServers };
             }
         } catch (e) {
