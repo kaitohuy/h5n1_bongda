@@ -36,6 +36,7 @@ export default function RootLayout({
     <html lang="vi" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${fontMeowScript.variable} antialiased min-h-screen bg-gradient-to-br from-bg-start to-bg-end text-foreground transition-colors duration-200`}
+        suppressHydrationWarning
       >
         <ThemeProvider
           attribute="class"

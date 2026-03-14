@@ -1,30 +1,25 @@
-const GAVANG_API = 'https://api-gavang.gvtv1.com';
-const API_HEADERS = {
-    'Content-Type': 'application/json',
-    'Origin': 'https://xem1.gv05.live',
-    'Referer': 'https://xem1.gv05.live/',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-};
-
-const MATCHES_QUERY = `{
-  matches {
-    id team_1 team_2 start_date status is_live is_hot desc
-  }
-}`;
-
-async function test() {
+async function checkApi() {
     try {
-        console.log('1. Fetching matches list from GraphQL API...');
-        const res = await fetch(`${GAVANG_API}/matches/graph`, {
-            method: 'POST',
-            headers: API_HEADERS,
-            body: JSON.stringify({ query: MATCHES_QUERY })
-        });
-        const json = await res.json();
-        const matches = json.data || json.matches || [];
-        console.log(`[RESULT] API is still working! Found ${matches.length} matches.`);
+        const res = await fetch('http://localhost:8000/api/standings');
+        const data = await res.json();
+        const fifa = data.leagues.find(l => l.category === 'BXH FIFA');
+        if (fifa) {
+            console.log('--- FIFA LEAGUE OBJECT ---');
+            console.log('Name:', fifa.leagueName);
+            console.log('vnRank:', fifa.vnRank);
+            console.log('Category:', fifa.category);
+            console.log('First Team:', {
+                name: fifa.teams[0].teamName,
+                region: fifa.teams[0].region,
+                logo: fifa.teams[0].logo
+            });
+            console.log('JSON keys:', Object.keys(fifa));
+        } else {
+            console.log('FIFA League NOT found in leagues array');
+            console.log('Available categories:', data.leagues.map(l => l.category));
+        }
     } catch (e) {
-        console.error('API Error:', e.message);
+        console.error('API Check failed:', e.message);
     }
 }
-test();
+checkApi();

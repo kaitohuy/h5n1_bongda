@@ -5,7 +5,8 @@
 const { Router } = require('express');
 const https = require('https');
 const http = require('http');
-const { fetchGavangMatches, extractGavangStream, clearCache } = require('./scraper_gavang');
+const { fetchGavangMatches, extractGavangStream, clearCache: clearGavangCache } = require('./scraper_gavang');
+const { getStandings, clearCache: clearBongdaCache, fetchDetailedStandings } = require('./scraper_bongda24h');
 
 const router = Router();
 
@@ -19,8 +20,9 @@ router.get('/health', (_req, res) => {
 
 // ── Clear Cache ────────────────────────────────────────────────────────────────
 router.get('/api/clear-cache', (_req, res) => {
-    clearCache();
-    res.json({ success: true, message: 'Cache cleared. Next request will re-fetch from GavangTV.' });
+    clearGavangCache();
+    clearBongdaCache();
+    res.json({ success: true, message: 'Cache cleared for Gavang and Bongda24h.' });
 });
 
 // ── Match listing ─────────────────────────────────────────────────────────────
@@ -71,6 +73,43 @@ router.get('/api/matches', async (req, res) => {
     } catch (err) {
         const elapsed = Date.now() - start;
         console.error(`[matches] ✗ Error after ${elapsed}ms: ${err.message}`);
+        return res.status(500).json({ success: false, error: err.message, elapsedMs: elapsed });
+    }
+});
+
+// ── Standings (Bảng Xếp Hạng) ────────────────────────────────────────────────
+// GET /api/standings
+router.get('/api/standings', async (_req, res) => {
+    console.log(`[standings] Requesting Leaderboards (source: bongda24h)`);
+    const start = Date.now();
+    try {
+        const result = await getStandings();
+        const elapsed = Date.now() - start;
+        const leaguesCount = result.leagues ? result.leagues.length : 0;
+        console.log(`[standings] ✓ Returning ${leaguesCount} leagues in ${elapsed}ms`);
+        return res.json({ success: true, ...result, elapsedMs: elapsed });
+    } catch (err) {
+        const elapsed = Date.now() - start;
+        console.error(`[standings] ✗ Error after ${elapsed}ms: ${err.message}`);
+        return res.status(500).json({ success: false, error: err.message, elapsedMs: elapsed });
+    }
+});
+
+// GET /api/standings/detail?url=...
+router.get('/api/standings/detail', async (req, res) => {
+    const { url } = req.query;
+    if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
+    console.log(`[standings/detail] Requesting detailed standings for: ${url}`);
+    const start = Date.now();
+    try {
+        const teams = await fetchDetailedStandings(url);
+        if (!teams) throw new Error('Could not fetch detailed standings');
+        const elapsed = Date.now() - start;
+        console.log(`[standings/detail] ✓ Returning ${teams.length} teams in ${elapsed}ms`);
+        return res.json({ success: true, teams, elapsedMs: elapsed });
+    } catch (err) {
+        const elapsed = Date.now() - start;
+        console.error(`[standings/detail] ✗ Error after ${elapsed}ms: ${err.message}`);
         return res.status(500).json({ success: false, error: err.message, elapsedMs: elapsed });
     }
 });

@@ -44,6 +44,12 @@ export default function Header({ onLogoClick }: HeaderProps) {
                     </span>
                 </button>
 
+                {/* ── Center Navigation ── */}
+                <nav className="hidden md:flex items-center gap-6 text-sm font-semibold">
+                    <a href="/" className="hover:text-[var(--logo-text-accent)] transition-colors">Trực Tiếp</a>
+                    <a href="/bang-xep-hang" className="text-foreground/80 hover:text-[var(--logo-text-accent)] transition-colors">Bảng Xếp Hạng</a>
+                </nav>
+
                 {/* ── Right actions ── */}
                 <div className="flex items-center gap-1">
 

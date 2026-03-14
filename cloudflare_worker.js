@@ -53,7 +53,11 @@ export default {
         try { origin = new URL(referer).origin; } catch { origin = referer; }
 
         // BẮT BUỘC: Nếu là domain của GavangTV CDN, phải ép Origin là web của họ để tránh 403
-        if (parsedTarget.hostname.includes('fastestcdn') || parsedTarget.hostname.includes('100ycdn')) {
+        if (parsedTarget.hostname.includes('fastestcdn') || 
+            parsedTarget.hostname.includes('100ycdn') ||
+            parsedTarget.hostname.includes('gv05.live') ||
+            parsedTarget.hostname.includes('gvtv') ||
+            parsedTarget.hostname.includes('static.fastestcdn-global.com')) {
             origin = 'https://xem1.gv05.live';
             referer = 'https://xem1.gv05.live/';
         }
@@ -76,7 +80,7 @@ export default {
                 const cachedRes = new Response(cached.body, cached);
                 cachedRes.headers.set('X-Cache', 'HIT');
                 cachedRes.headers.set('Access-Control-Allow-Origin', '*');
-                // Trả HEAD response nếu client gửi HEAD
+                // Trình phát HLS đôi khi cần các header từ response gốc
                 return cachedRes;
             }
         }
@@ -103,8 +107,8 @@ export default {
             clearTimeout(timeoutId);
 
             // Detect content type
-            const contentType = response.headers.get('content-type') || '';
-            const isM3u8ByContent = isM3u8 || contentType.includes('mpegurl') || contentType.includes('x-mpegURL');
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+            const isM3u8ByContent = isM3u8 || contentType.includes('mpegurl') || contentType.includes('x-mpegurl');
 
             // Build response headers
             const resHeaders = new Headers(response.headers);
@@ -112,6 +116,7 @@ export default {
             resHeaders.set('Access-Control-Expose-Headers', '*');
             resHeaders.set('Cache-Control', `public, max-age=${cacheTtl}, stale-while-revalidate=${cacheTtl * 2}`);
             resHeaders.set('X-Cache', 'MISS');
+            resHeaders.set('X-Proxy-Target', targetUrl);
             resHeaders.delete('X-Frame-Options');
             resHeaders.delete('Content-Security-Policy');
 
@@ -119,15 +124,26 @@ export default {
             if (isM3u8ByContent && response.status === 200 && request.method !== 'HEAD') {
                 const text = await response.text();
                 const pathDir = parsedTarget.pathname.replace(/[^/]*$/, '');
+                // cdnBase là base path cho relative URLs (ví dụ: segment.ts)
                 const cdnBase = `${parsedTarget.protocol}//${parsedTarget.hostname}${pathDir}`;
+                // hostBase là base cho paths bắt đầu bằng / (ví dụ: /hls/segment.ts)
+                const hostBase = `${parsedTarget.protocol}//${parsedTarget.hostname}`;
+                
                 const cfWorkerOrigin = `${url.protocol}//${url.host}`;
                 const refEncoded = encodeURIComponent(referer);
 
                 const rewrittenText = text.split('\n').map(line => {
                     const trimmed = line.trim();
                     if (!trimmed || trimmed.startsWith('#')) return line;
-                    // Resolve relative URL → absolute → wrap qua CF proxy
-                    const absUrl = trimmed.startsWith('http') ? trimmed : cdnBase + trimmed;
+                    
+                    let absUrl;
+                    if (trimmed.startsWith('http')) {
+                        absUrl = trimmed;
+                    } else if (trimmed.startsWith('/')) {
+                        absUrl = hostBase + trimmed;
+                    } else {
+                        absUrl = cdnBase + trimmed;
+                    }
                     return `${cfWorkerOrigin}/?url=${encodeURIComponent(absUrl)}&ref=${refEncoded}`;
                 }).join('\n');
 

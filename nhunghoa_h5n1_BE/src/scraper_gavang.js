@@ -1,4 +1,4 @@
-﻿/**
+/**
  * scraper_gavang.js — GavangTV scraper
  *
  * Match listing : Direct GraphQL API (api-gavang.gvtv1.com) — no browser needed (~200ms!)
@@ -24,7 +24,7 @@ const DEFAULT_TIMEOUT_MS = 25000;
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 let matchCache = { data: { matches: [], hasMore: false }, expiresAt: 0 };
-const CACHE_TTL = 3 * 60 * 1000; // 3 phút
+const CACHE_TTL = 30 * 1000; // Giảm xuống 30 giây để cập nhật tỉ số real-time
 
 // ── GraphQL Query ─────────────────────────────────────────────────────────────
 const MATCHES_QUERY = `{
@@ -128,6 +128,29 @@ async function fetchFromAPI() {
             const mappedStatus = mapStatus(m);
             // Thủ thuật: Đặt sourceUrl chính là API endpoint để bypass Playwright 100%
             const fakeSourceUrl = `${GAVANG_API}/match/${m.id}/live`;
+            
+            // Tính toán số phút (minute) dựa vào thời gian hiện tại - start_date
+            let matchMinute = '';
+            if (mappedStatus === 'Trực tiếp') {
+                try {
+                    const startTimeStr = m.start_date.replace(' ', 'T');
+                    const startTime = new Date(startTimeStr.endsWith('Z') ? startTimeStr : startTimeStr + 'Z').getTime();
+                    const now = Date.now();
+                    
+                    if (!isNaN(startTime) && now > startTime) {
+                        const diffMinutes = Math.floor((now - startTime) / 60000);
+                        // Giới hạn hiển thị 90+ phút (hoặc 120+ phút tùy ý)
+                        matchMinute = diffMinutes > 90 ? '90+' : `${diffMinutes}'`;
+                    } else {
+                        matchMinute = 'LIVE'; // Chưa tới giờ hoặc lỗi parse
+                    }
+                } catch (e) {
+                    matchMinute = 'LIVE';
+                }
+            } else if (mappedStatus === 'Đã kết thúc') {
+                matchMinute = 'FT';
+            }
+            
             return {
                 id: 'gv_' + (m.id || i),
                 home: m.team_1 || 'Đội nhà',
@@ -140,7 +163,7 @@ async function fetchFromAPI() {
                 time,
                 date,
                 status: mappedStatus,
-                minute: m.is_live ? 'LIVE' : '',
+                minute: matchMinute,
                 homeScore: m.is_live || mappedStatus === 'Đã kết thúc' ? (m.team_1_score ?? null) : null,
                 awayScore: m.is_live || mappedStatus === 'Đã kết thúc' ? (m.team_2_score ?? null) : null,
                 isHot: Boolean(m.is_hot || m.is_top),
@@ -220,11 +243,23 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
                     if (m3u8Res.ok) {
                         const m3u8Text = await m3u8Res.text();
                         const lines = m3u8Text.split('\n');
-                        // Tìm dòng chứa link thật (thường bắt đầu bằng http)
-                        const trueUrlLine = lines.find(line => line.trim().startsWith('http'));
-                        if (trueUrlLine) {
-                            console.log(`[gavang] Extracted true stream with token: ${trueUrlLine}`);
-                            return { streamUrl: trueUrlLine.trim(), iframeSrc: null, servers: availableServers };
+                        // Tìm dòng chứa link thật (thường là dòng không bắt đầu bằng #)
+                        const streamLine = lines.find(line => line.trim() && !line.trim().startsWith('#'));
+                        
+                        if (streamLine) {
+                            let trueUrl = streamLine.trim();
+                            // Nếu là link tương đối, phải ghép với base URL của finalUrl
+                            if (!trueUrl.startsWith('http')) {
+                                const baseUrl = finalUrl.substring(0, finalUrl.lastIndexOf('/') + 1);
+                                if (trueUrl.startsWith('/')) {
+                                    const urlObj = new URL(finalUrl);
+                                    trueUrl = urlObj.origin + trueUrl;
+                                } else {
+                                    trueUrl = baseUrl + trueUrl;
+                                }
+                            }
+                            console.log(`[gavang] Extracted true stream with token: ${trueUrl}`);
+                            return { streamUrl: trueUrl, iframeSrc: null, servers: availableServers };
                         }
                     }
                 } catch (innerError) {
