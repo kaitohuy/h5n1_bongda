@@ -5,7 +5,8 @@ import StandingsLayout from "@/components/StandingsLayout";
 async function getStandings() {
     try {
         console.log('[FE] Fetching standings from backend...');
-        const res = await fetch('http://127.0.0.1:8000/api/standings', { 
+        const BE_URL = process.env.NEXT_PUBLIC_BE_URL || process.env.BE_URL || 'http://127.0.0.1:8000';
+        const res = await fetch(`${BE_URL}/api/standings`, { 
             cache: 'no-store'
         });
         if (!res.ok) throw new Error(`Failed to fetch API: ${res.status}`);

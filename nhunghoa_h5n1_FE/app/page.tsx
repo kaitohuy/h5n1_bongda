@@ -177,7 +177,7 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-12">
         {/* Video Player Popup/Block */}
         {activeMatch && (
-          <div className="mb-10 ring-1 ring-border shadow-2xl rounded-2xl overflow-hidden bg-black/50">
+          <div className="mb-10 ring-1 ring-border shadow-2xl rounded-2xl bg-black/50">
             <VideoPlayer
               match={activeMatch}
               streamUrl={streamUrl}

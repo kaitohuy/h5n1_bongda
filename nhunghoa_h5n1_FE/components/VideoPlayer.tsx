@@ -140,7 +140,7 @@ export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer
     };
 
     return (
-        <div ref={containerRef} className="w-full flex flex-col bg-surface border border-border shadow-2xl rounded-2xl overflow-hidden animate-in slide-in-from-top-4 fade-in duration-300">
+        <div ref={containerRef} className="w-full flex flex-col bg-surface border border-border shadow-2xl rounded-2xl animate-in slide-in-from-top-4 fade-in duration-300" style={{ isolation: 'isolate' }}>
 
             {/* ────────── Top title bar with ALL controls ────────── */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-b border-border/50 bg-background/80 gap-3">
@@ -201,7 +201,7 @@ export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer
             </div>
 
             {/* ────────── Video area ────────── */}
-            <div className="relative w-full aspect-video bg-black">
+            <div className="relative w-full aspect-video bg-black rounded-b-2xl" style={{ isolation: 'isolate' }}>
 
                 {/* Loading / Error overlay */}
                 {(isLoading || isError) && (
@@ -229,7 +229,7 @@ export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer
                         ref={iframeRef}
                         key={streamUrl}
                         src={streamUrl}
-                        className="w-full h-full border-0"
+                        className="w-full h-full border-0 rounded-b-2xl object-contain"
                         allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                         allowFullScreen
                         onLoad={() => setIsLoading(false)}
@@ -239,7 +239,7 @@ export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer
                     />
                 ) : (
                     /* ── Native video element (m3u8 / flv) ── */
-                    <video ref={videoRef} className="w-full h-full" controls playsInline />
+                    <video ref={videoRef} className="w-full h-full rounded-b-2xl object-cover" controls playsInline />
                 )}
             </div>
         </div>
