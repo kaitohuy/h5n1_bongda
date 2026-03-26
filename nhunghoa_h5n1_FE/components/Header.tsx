@@ -1,8 +1,9 @@
 'use client';
 
-import { Search, Sun, Moon } from 'lucide-react';
+import { Search, Sun, Moon, Menu, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 interface HeaderProps {
     onLogoClick?: () => void;
@@ -11,6 +12,8 @@ interface HeaderProps {
 export default function Header({ onLogoClick }: HeaderProps) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    
     useEffect(() => { setMounted(true); }, []);
 
     return (
@@ -44,10 +47,10 @@ export default function Header({ onLogoClick }: HeaderProps) {
                     </span>
                 </button>
 
-                {/* ── Center Navigation ── */}
+                {/* ── Center Navigation (Desktop) ── */}
                 <nav className="hidden md:flex items-center gap-6 text-sm font-semibold">
-                    <a href="/" className="hover:text-[var(--logo-text-accent)] transition-colors">Trực Tiếp</a>
-                    <a href="/bang-xep-hang" className="text-foreground/80 hover:text-[var(--logo-text-accent)] transition-colors">Bảng Xếp Hạng</a>
+                    <Link href="/" className="hover:text-[var(--logo-text-accent)] transition-colors">Trực Tiếp</Link>
+                    <Link href="/bang-xep-hang" className="text-foreground/80 hover:text-[var(--logo-text-accent)] transition-colors">Bảng Xếp Hạng</Link>
                 </nav>
 
                 {/* ── Right actions ── */}
@@ -80,8 +83,41 @@ export default function Header({ onLogoClick }: HeaderProps) {
                             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                         </button>
                     )}
+
+                    {/* Mobile Menu Toggle */}
+                    <button
+                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                        className="
+                            md:hidden p-2 rounded-xl text-foreground/60 hover:text-foreground
+                            bg-[var(--header-btn-bg)] hover:bg-[var(--header-btn-hover)] border border-transparent hover:border-border-theme
+                            transition-all duration-150
+                        "
+                        aria-label="Menu"
+                    >
+                        {isMobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+                    </button>
                 </div>
             </div>
+
+            {/* ── Mobile Navigation Menu ── */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden absolute top-16 left-0 w-full bg-[var(--header-bg)] border-b border-border-theme shadow-lg py-4 px-4 flex flex-col gap-4 z-40 animate-in slide-in-from-top-2 fade-in duration-200">
+                    <Link 
+                        href="/" 
+                        className="text-base font-bold text-foreground/80 hover:text-[var(--logo-text-accent)] transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        Trực Tiếp
+                    </Link>
+                    <Link 
+                        href="/bang-xep-hang" 
+                        className="text-base font-bold text-foreground/80 hover:text-[var(--logo-text-accent)] transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        Bảng Xếp Hạng
+                    </Link>
+                </div>
+            )}
         </header>
     );
 }
