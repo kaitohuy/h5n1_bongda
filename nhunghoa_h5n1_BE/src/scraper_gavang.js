@@ -243,7 +243,7 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
                     if (m3u8Res.ok) {
                         const m3u8Text = await m3u8Res.text();
                         const lines = m3u8Text.split('\n');
-                        // Tìm dòng chứa link thật (thường là dòng không bắt đầu bằng #)
+                        // Tìm dòng chứa link thật (không bắt đầu bằng #)
                         const streamLine = lines.find(line => line.trim() && !line.trim().startsWith('#'));
                         
                         if (streamLine) {
@@ -257,6 +257,12 @@ async function extractGavangStream(targetUrl, requestedServer = null) {
                                 } else {
                                     trueUrl = baseUrl + trueUrl;
                                 }
+                            }
+                            // Nếu link bên trong là .ts segment (không phải .m3u8),
+                            // trả về finalUrl gốc để hls.js tự parse playlist đúng cách.
+                            if (trueUrl.includes('.ts') && !trueUrl.includes('.m3u8')) {
+                                console.log(`[gavang] Inner URL is a .ts segment, using master playlist: ${finalUrl}`);
+                                return { streamUrl: finalUrl, iframeSrc: null, servers: availableServers };
                             }
                             console.log(`[gavang] Extracted true stream with token: ${trueUrl}`);
                             return { streamUrl: trueUrl, iframeSrc: null, servers: availableServers };
