@@ -25,72 +25,120 @@ export default function Home() {
   const [showAllHot, setShowAllHot] = useState(false);
   const [showAllLive, setShowAllLive] = useState(false);
 
+  // Nguồn phát mặc định
+  const [source, setSource] = useState<'timbageek' | 'gavangtv'>('timbageek');
+
+  // Đọc nguồn ưu tiên từ URL query hoặc localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const querySource = params.get('source') as 'timbageek' | 'gavangtv';
+      const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'gavangtv';
+      const activeSrc = querySource || savedSource || 'timbageek';
+      if (activeSrc === 'timbageek' || activeSrc === 'gavangtv') {
+        setSource(activeSrc);
+      }
+    }
+  }, []);
+
   // ── Fetch ALL matches from BE ──────────────────────────────────────────────
-  const fetchAllMatches = useCallback(async (loadMore: boolean = false) => {
+  const fetchAllMatches = useCallback(async (loadMore: boolean = false, activeSrc = source) => {
     if (!loadMore) setIsLoading(true);
     setError('');
     try {
-      const params = new URLSearchParams({ filter: 'all', loadMore: loadMore ? 'true' : 'false' });
+      const params = new URLSearchParams({ 
+        filter: 'all', 
+        loadMore: loadMore ? 'true' : 'false',
+        source: activeSrc
+      });
       const res = await fetch(`${BE_URL}/api/matches?${params}`);
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Lỗi lấy dữ liệu');
       setHasMoreBackend(Boolean(data.hasMore));
-      const raw: Match[] = (data.matches || []).map((m: any) => ({
-        id: String(m.id),
-        home: String(m.home || 'Đội nhà'),
-        away: String(m.away || 'Đội khách'),
-        homeLogo: String(m.homeLogo || ''),
-        awayLogo: String(m.awayLogo || ''),
-        leagueId: String(m.leagueId || ''),
-        leagueLogo: String(m.leagueLogo || ''),
-        league: String(m.league || 'Không rõ'),
-        time: String(m.time || '--:--'),
-        date: String(m.date || ''),
-        status: (m.status as Match['status']) || 'Sắp tới',
-        minute: String(m.minute || ''),
-        homeScore: m.homeScore !== null && m.homeScore !== undefined ? Number(m.homeScore) : null,
-        awayScore: m.awayScore !== null && m.awayScore !== undefined ? Number(m.awayScore) : null,
-        isHot: Boolean(m.isHot),
-        isSuperHot: Boolean(m.isSuperHot),
-        commentator: String(m.commentator || ''),
-        section: String(m.section || ''),
-        sourceUrl: String(m.sourceUrl || ''),
-      }));
+
+      // BE có thể tự động trả về nguồn active thực tế sau khi fallback (nếu preferred source bị sập)
+      if (data.source && data.source !== activeSrc) {
+        setSource(data.source);
+      }
+
+      const raw: Match[] = (data.matches || []).map((m: any) => {
+        // cdnokvip: startTime là unix timestamp → convert sang time/date string
+        let timeStr = String(m.time || '--:--');
+        let dateStr = String(m.date || '');
+        if (m.startTime && typeof m.startTime === 'number') {
+          const d = new Date(m.startTime * 1000);
+          timeStr = d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+          dateStr = d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
+        }
+
+        // cdnokvip: status là number (0=upcoming,1=live,3=finished,-1=cancelled)
+        // Gavang: status đã là string "Trực tiếp"/"Sắp tới"/"Đã kết thúc"
+        let statusMapped: Match['status'] = 'Sắp tới';
+        if (typeof m.status === 'number') {
+          statusMapped = (m.status === 1 || m.isLive) ? 'Trực tiếp'
+                       : m.status === 3               ? 'Đã kết thúc'
+                       : 'Sắp tới';
+        } else if (typeof m.status === 'string' && ['Trực tiếp', 'Sắp tới', 'Đã kết thúc'].includes(m.status)) {
+          statusMapped = m.status as Match['status'];
+        } else if (m.statusText) {
+          const t = m.statusText as string;
+          statusMapped = t === 'Trực tiếp' ? 'Trực tiếp' : t === 'Kết thúc' ? 'Đã kết thúc' : 'Sắp tới';
+        }
+
+        return {
+          id: String(m.id || m.matchId || ''),
+          home: String(m.home || m.homeName || 'Đội nhà'),
+          away: String(m.away || m.awayName || 'Đội khách'),
+          homeLogo: String(m.homeLogo || ''),
+          awayLogo: String(m.awayLogo || ''),
+          leagueId: String(m.leagueId || m.league || ''),
+          leagueLogo: String(m.leagueLogo || ''),
+          league: String(m.league || m.leagueName || 'Không rõ'),
+          time: timeStr,
+          date: dateStr,
+          status: statusMapped,
+          minute: String(m.minute || ''),
+          homeScore: m.homeScore !== null && m.homeScore !== undefined ? Number(m.homeScore) : null,
+          awayScore: m.awayScore !== null && m.awayScore !== undefined ? Number(m.awayScore) : null,
+          isHot: Boolean(m.isHot || (m.viewNumber && m.viewNumber >= 46000)),
+          isSuperHot: Boolean(m.isSuperHot),
+          commentator: String(m.commentator || ''),
+          section: String(m.section || ''),
+          sourceUrl: String(m.sourceUrl || m.slug || ''),
+          source: m.source || data.source,
+        };
+      });
       setMatches(raw);
     } catch {
       setError('Không kết nối được đến backend. Kiểm tra BE đang chạy trên cổng 8000.');
     } finally {
       if (!loadMore) setIsLoading(false);
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
-    fetchAllMatches(false); // Init without loadMore
-  }, [fetchAllMatches]);
+    fetchAllMatches(false, source); // Init matching current active source
+  }, [fetchAllMatches, source]);
 
   useEffect(() => {
-    const id = setInterval(() => fetchAllMatches(false), 600_000);
+    const id = setInterval(() => fetchAllMatches(false, source), 600_000);
     return () => clearInterval(id);
-  }, [fetchAllMatches]);
+  }, [fetchAllMatches, source]);
 
   // Handle Load More
   const handleLoadMore = useCallback(async (section: 'hot' | 'live') => {
     setIsFetchingMore(section);
-    // 1. Fetch lại toàn bộ với chế độ loadMore (sẽ lấy từ cache full hoặc quét full)
-    await fetchAllMatches(true);
-    // 2. Mở khóa display logic
+    await fetchAllMatches(true, source);
     if (section === 'hot') setShowAllHot(true);
     if (section === 'live') setShowAllLive(true);
     setIsFetchingMore(null);
-  }, [fetchAllMatches]);
+  }, [fetchAllMatches, source]);
 
   // ── Fetch stream URL ───────────────────────────────────────────────────────
-  // Các phase loading message hiển thị trong quá trình chờ scraper (~6s)
   const STREAM_LOADING_PHASES = [
-    { delay: 0, msg: '🔌 Đang kết nối máy chủ...' },
-    { delay: 1500, msg: '🤖 Đang tải trình duyệt ảo...' },
-    { delay: 3000, msg: '⏭️ Đang bỏ qua quảng cáo...' },
-    { delay: 5000, msg: '📡 Đang lấy luồng video...' },
+    { delay: 0,   msg: '🔌 Đang kết nối máy chủ...' },
+    { delay: 500, msg: '📡 Đang lấy luồng video...' },
+    { delay: 1200, msg: '▶️ Đang khởi tạo video...' },
   ];
 
   useEffect(() => {
@@ -99,7 +147,6 @@ export default function Home() {
     setStreamUrl('');
     setLoadingStreamMsg(STREAM_LOADING_PHASES[0].msg);
 
-    // Rotate trạng thái loading theo từng phase
     const timers = STREAM_LOADING_PHASES.slice(1).map(({ delay, msg }) =>
       setTimeout(() => { if (mounted) setLoadingStreamMsg(msg); }, delay)
     );
@@ -108,6 +155,7 @@ export default function Home() {
       try {
         const query = new URLSearchParams();
         query.set('url', activeMatch.sourceUrl);
+        query.set('source', activeMatch.source || source);
         if (activeServer) query.set('server', activeServer);
 
         const res = await fetch(`${BE_URL}/api/extract?${query.toString()}`);
@@ -115,7 +163,10 @@ export default function Home() {
         if (!data.success) throw new Error(data.error);
         if (mounted) {
           if (data.servers && data.servers.length > 0) {
-            setAvailableServers(data.servers);
+            const serverLabels = data.servers.map((s: any) =>
+              typeof s === 'string' ? s : (s.label || s.slug || `Server ${s.id || ''}`)
+            );
+            setAvailableServers(serverLabels);
           }
           const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
           const cfWorker = process.env.NEXT_PUBLIC_PROXY_URL || 'https://h5n1-proxy.huynguyendoan0305.workers.dev';
@@ -129,7 +180,7 @@ export default function Home() {
       timers.forEach(clearTimeout);
     })();
     return () => { mounted = false; timers.forEach(clearTimeout); };
-  }, [activeMatch, activeServer]);
+  }, [activeMatch, activeServer, source]);
 
   const handleMatchSelect = (match: Match) => {
     setActiveMatch(match);
@@ -172,7 +223,20 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      <Header onLogoClick={() => { setActiveMatch(null); setStreamUrl(''); }} />
+      <Header 
+        onLogoClick={() => { setActiveMatch(null); setStreamUrl(''); }}
+        currentSource={source}
+        onSourceChange={(src) => {
+          if (src !== source) {
+            setSource(src);
+            setActiveMatch(null);
+            setStreamUrl('');
+            setMatches([]);
+          } else {
+            fetchAllMatches(false, src);
+          }
+        }}
+      />
 
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-12">
         {/* Video Player Popup/Block */}

@@ -6,19 +6,19 @@ async function getStandings() {
     try {
         console.log('[FE] Fetching standings from backend...');
         const BE_URL = process.env.NEXT_PUBLIC_BE_URL || process.env.BE_URL || 'http://127.0.0.1:8000';
-        const res = await fetch(`${BE_URL}/api/standings`, { 
+        const res = await fetch(`${BE_URL}/api/standings`, {
             cache: 'no-store'
         });
         if (!res.ok) throw new Error(`Failed to fetch API: ${res.status}`);
         const data = await res.json();
-        
+
         const lCount = data.leagues ? data.leagues.length : 0;
         const nCount = data.navigation ? data.navigation.length : 0;
         console.log(`[FE] Received ${lCount} leagues and ${nCount} navigation items`);
-        
-        return { 
-            leagues: data.leagues || [], 
-            navigation: data.navigation || [] 
+
+        return {
+            leagues: data.leagues || [],
+            navigation: data.navigation || []
         };
     } catch (error) {
         console.error("[FE] Error fetching standings:", error);
@@ -28,23 +28,23 @@ async function getStandings() {
 
 export default async function StandingsPage() {
     const { leagues, navigation } = await getStandings();
-    
+
     console.log(`[FE] Page Render: leagues=${leagues.length}, navigation=${navigation.length}`);
 
     return (
-        <div 
+        <div
             className="min-h-screen bg-[var(--app-bg)] text-foreground flex flex-col transition-colors duration-200"
             suppressHydrationWarning
         >
             <Header />
-            
+
             <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:py-8 lg:px-8">
                 <div className="mb-6 md:mb-8">
                     <h1 className="text-3xl md:text-4xl font-black mb-2 flex items-center gap-3 tracking-tight">
                         Bảng xếp hạng bóng đá mới nhất
                     </h1>
                 </div>
-                
+
                 <div className="w-full">
                     {leagues.length > 0 || navigation.length > 0 ? (
                         <StandingsLayout leagues={leagues} navigation={navigation} />

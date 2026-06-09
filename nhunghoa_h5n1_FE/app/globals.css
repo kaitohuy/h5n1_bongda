@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ===================== */
 /* Theme 1: Soft Mint & Sky Blue (Customized) */
@@ -27,13 +28,13 @@
   --surface: #ffffff;
   --surface-hover: #7ad79b;
 
-  /* Màu Header và SubNav (Solid - không bóng kính) */
-  --header-bg: #feeedc;
-  --header-btn-bg: #f1f5f9;
-  --header-btn-hover: #e2e8f0;
-  --subnav-bg: #fafde9;
+  /* Màu Header và SubNav (Màu trắng mờ phủ sương mịn, hòa hợp tuyệt đối với nền mint) */
+  --header-bg: rgba(255, 255, 255, 0.82);
+  --header-btn-bg: rgba(15, 23, 42, 0.05);
+  --header-btn-hover: rgba(15, 23, 42, 0.15);
+  --subnav-bg: rgba(255, 255, 255, 0.5);
 
-  --border: #e2e8f0;
+  --border: rgba(15, 23, 42, 0.08);
 
   /* Màu Logo Chữ Header */
   --logo-text-primary: #fd7d46;
