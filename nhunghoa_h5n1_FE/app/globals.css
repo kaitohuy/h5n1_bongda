@@ -28,11 +28,11 @@
   --surface: #ffffff;
   --surface-hover: #7ad79b;
 
-  /* Màu Header và SubNav (Màu trắng mờ phủ sương mịn, hòa hợp tuyệt đối với nền mint) */
-  --header-bg: rgba(255, 255, 255, 0.82);
+  /* Màu Header và SubNav (Màu vàng kem ấm áp mờ, giữ bản sắc và hòa hợp tuyệt đối) */
+  --header-bg: rgba(254, 238, 220, 0.8);
   --header-btn-bg: rgba(15, 23, 42, 0.05);
   --header-btn-hover: rgba(15, 23, 42, 0.15);
-  --subnav-bg: rgba(255, 255, 255, 0.5);
+  --subnav-bg: rgba(254, 238, 220, 0.5);
 
   --border: rgba(15, 23, 42, 0.08);
 
