@@ -29,7 +29,7 @@ router.get('/api/clear-cache', (_req, res) => {
 // ── Match listing ─────────────────────────────────────────────────────────────
 // GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false&source=timbageek|gavangtv
 router.get('/api/matches', async (req, res) => {
-    const { filter = 'all', league = '', loadMore = 'false', source = 'timbageek' } = req.query;
+    const { filter = 'all', league = '', loadMore = 'false', source = 'gavangtv' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
     const isLoadMore = loadMore === 'true';
