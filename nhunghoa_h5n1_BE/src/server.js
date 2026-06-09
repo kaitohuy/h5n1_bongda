@@ -8,6 +8,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
+const { prewarmCache: prewarmCdnokvip } = require('./scraper_cdnokvip');
+const { prewarmCache: prewarmGavangtv } = require('./scraper_gavangtv_new');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -60,10 +62,14 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`\n🚀 nhunghoa-h5n1-be scraper service running on http://localhost:${PORT}`);
     console.log(`   Allowed origins: ${allowedOrigins.join(', ')}`);
     console.log(`   Endpoints:`);
     console.log(`     GET /health`);
-    console.log(`     GET /api/extract?url=<target-page>\n`);
+    console.log(`     GET /api/extract?url=<slug>\n`);
+
+    // Pre-warm caches
+    prewarmCdnokvip();
+    prewarmGavangtv();
 });

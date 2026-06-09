@@ -1,11 +1,13 @@
 /**
- * routes.js — Express route handlers for XoiLac scraper.
+ * routes.js — Express route handlers for H5N1 scraper.
+ * Source: timbageek.com / api-ls.cdnokvip.com
  */
 
 const { Router } = require('express');
 const https = require('https');
 const http = require('http');
-const { fetchGavangMatches, extractGavangStream, clearCache: clearGavangCache } = require('./scraper_gavang');
+const { fetchMatches: fetchCdnokvipMatches, extractStream: extractCdnokvipStream } = require('./scraper_cdnokvip');
+const { fetchMatches: fetchGavangtvMatches, extractStream: extractGavangtvStream } = require('./scraper_gavangtv_new');
 const { getStandings, clearCache: clearBongdaCache, fetchDetailedStandings } = require('./scraper_bongda24h');
 
 const router = Router();
@@ -20,56 +22,103 @@ router.get('/health', (_req, res) => {
 
 // ── Clear Cache ────────────────────────────────────────────────────────────────
 router.get('/api/clear-cache', (_req, res) => {
-    clearGavangCache();
     clearBongdaCache();
-    res.json({ success: true, message: 'Cache cleared for Gavang and Bongda24h.' });
+    res.json({ success: true, message: 'Cache cleared.' });
 });
 
 // ── Match listing ─────────────────────────────────────────────────────────────
-// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false
+// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false&source=timbageek|gavangtv
 router.get('/api/matches', async (req, res) => {
-    const { filter = 'all', league = '', loadMore = 'false' } = req.query;
+    const { filter = 'all', league = '', loadMore = 'false', source = 'timbageek' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
     const isLoadMore = loadMore === 'true';
 
-    console.log(`[matches] filter=${safeFilter} league=${league || 'all'} loadMore=${isLoadMore}`);
+    console.log(`[matches] filter=${safeFilter} league=${league || 'all'} loadMore=${isLoadMore} preferredSource=${source}`);
     const start = Date.now();
 
-    try {
-        let matches = [];
+    let matches = [];
+    let activeSource = source === 'gavangtv' ? 'gavangtv' : 'timbageek';
+    let allMatches = [];
 
-        const payload = await fetchGavangMatches(isLoadMore);
-        const allMatches = payload.matches || [];
+    // Luồng tự động fallback nếu nguồn mặc định bị sập (dead)
+    try {
+        if (activeSource === 'timbageek') {
+            try {
+                allMatches = await fetchCdnokvipMatches();
+            } catch (err) {
+                console.warn(`[matches] Preferred source timbageek failed: ${err.message}. Falling back to gavangtv...`);
+                allMatches = await fetchGavangtvMatches();
+                activeSource = 'gavangtv';
+            }
+        } else {
+            try {
+                allMatches = await fetchGavangtvMatches();
+            } catch (err) {
+                console.warn(`[matches] Preferred source gavangtv failed: ${err.message}. Falling back to timbageek...`);
+                allMatches = await fetchCdnokvipMatches();
+                activeSource = 'timbageek';
+            }
+        }
+
+        // Đảm bảo các thuộc tính matches được chuẩn hoá hoàn chỉnh
+        allMatches = allMatches.map(m => ({
+            ...m,
+            statusText: m.status === 1 || m.isLive ? 'Trực tiếp'
+                      : m.status === 3             ? 'Kết thúc'
+                      : m.status === -1            ? 'Huỷ'
+                      : 'Sắp diễn ra',
+            sourceUrl: m.slug,
+            source: activeSource, // thêm nguồn vào từng match để FE biết
+        }));
+
         matches = allMatches;
         if (safeFilter === 'live') {
-            matches = allMatches.filter(m => m.status === 'Trực tiếp');
+            matches = allMatches.filter(m => m.status === 1 || m.isLive);
         } else if (safeFilter === 'hot') {
-            matches = allMatches.filter(m => m.isHot);
+            // timbageek lọc theo view >= 46000, gavangtv có thể dùng viewNumber hoặc m.pinHot
+            matches = allMatches.filter(m => m.viewNumber >= 46000 || m.isHot);
+        } else if (safeFilter === 'today') {
+            const today = new Date();
+            const startOfDay = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
+            const endOfDay = startOfDay + 86400;
+            matches = allMatches.filter(m => m.startTime >= startOfDay && m.startTime < endOfDay);
+        } else if (safeFilter === 'tomorrow') {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const startOfDay = Math.floor(new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate()).getTime() / 1000);
+            const endOfDay = startOfDay + 86400;
+            matches = allMatches.filter(m => m.startTime >= startOfDay && m.startTime < endOfDay);
         }
+
         if (league && league !== 'all') {
-            matches = matches.filter(m => m.league === league);
+            matches = matches.filter(m => m.league === league || m.leagueShortName === league);
         }
 
         const elapsed = Date.now() - start;
-        console.log(`[matches] ✓ ${matches.length} matches in ${elapsed}ms (source: gavang)`);
+        console.log(`[matches] ✓ ${matches.length} matches in ${elapsed}ms (active source: ${activeSource})`);
 
-        // Extract leagues manually since extractLeagues was in scraper.js
         const leaguesMap = new Map();
-        matches.forEach(m => {
+        allMatches.forEach(m => {
             if (m.league && !leaguesMap.has(m.league)) {
-                leaguesMap.set(m.league, { id: m.league, name: m.league, logo: m.leagueLogo || '' });
+                leaguesMap.set(m.league, { 
+                    id: m.league, 
+                    name: m.league, 
+                    shortName: m.leagueShortName || '', 
+                    logo: m.leagueLogo || '' 
+                });
             }
         });
         const leagues = Array.from(leaguesMap.values());
 
-        // Pre-fetch live stream URLs in background (disabled to prevent Render OOM on Free tier)
-        // const liveUrls = matches
-        //     .filter(m => m.status === 'Trực tiếp' && m.sourceUrl)
-        //     .map(m => m.sourceUrl);
-        // prefetchLiveStreams(liveUrls);
-
-        return res.json({ success: true, source: 'gavang', matches, hasMore: payload.hasMore || false, leagues, elapsedMs: elapsed });
+        return res.json({ 
+            success: true, 
+            source: activeSource, 
+            matches, 
+            hasMore: false, 
+            leagues, 
+            elapsedMs: elapsed 
+        });
     } catch (err) {
         const elapsed = Date.now() - start;
         console.error(`[matches] ✗ Error after ${elapsed}ms: ${err.message}`);
@@ -115,20 +164,62 @@ router.get('/api/standings/detail', async (req, res) => {
 });
 
 // ── M3U8 stream extractor ─────────────────────────────────────────────────────
-// GET /api/extract?url=https://fshcgroup.com/truc-tiep/...
+// GET /api/extract?url={slug}&source={source}&server={serverLabel}
 router.get('/api/extract', async (req, res) => {
-    const { url, server } = req.query;
+    const { url, source, server = '' } = req.query;
     if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
-    try { new URL(url); } catch { return res.status(400).json({ success: false, error: 'Invalid URL' }); }
 
-    console.log(`[extract] Extracting stream from → ${url} (source: gavang)`);
+    // Normalize: lấy slug từ URL hoặc dùng thẳng
+    let slug = url;
+    try {
+        const parsed = new URL(url);
+        slug = parsed.pathname.split('/').filter(Boolean).pop() || url;
+    } catch {
+        // Không phải URL → đã là slug
+    }
+
+    // Tự động nhận diện nguồn dựa trên slug hoặc qua param
+    // Gà Vàng TV slug thường kết thúc bằng gạch ngang và 15 ký tự chữ/số (ví dụ: -y0or5jh8w214qwz)
+    const isGavangtvSlug = /-[a-z0-9]{15}$/i.test(slug);
+    const useGavangtv = source === 'gavangtv' || (source !== 'timbageek' && isGavangtvSlug);
+    const activeSource = useGavangtv ? 'gavangtv' : 'timbageek';
+
+    console.log(`[extract] Extracting stream for slug: ${slug} (detected source: ${activeSource}, server: ${server})`);
     const start = Date.now();
 
     try {
-        let result = await extractGavangStream(url, server);
+        let result;
+        if (activeSource === 'gavangtv') {
+            // Đối với gavangtv, chuyển serverLabel sang index tương ứng nếu có
+            let serverIndex = null;
+            if (server) {
+                // Fetch matches từ cache của gavangtv để xem danh sách servers
+                try {
+                    const matches = await fetchGavangtvMatches();
+                    const match = matches.find(m => m.slug === slug);
+                    if (match && match.servers) {
+                        const idx = match.servers.findIndex(s => 
+                            s.label === server || 
+                            s.slug === server || 
+                            s.commentator === server ||
+                            String(s.commentatorId) === String(server)
+                        );
+                        if (idx !== -1) {
+                            serverIndex = idx;
+                            console.log(`[extract] Mapped server "${server}" to index ${serverIndex} for gavangtv`);
+                        }
+                    }
+                } catch (e) {
+                    console.error(`[extract] Failed to map server index for gavangtv:`, e.message);
+                }
+            }
+            result = await extractGavangtvStream(slug, serverIndex);
+        } else {
+            result = await extractCdnokvipStream(slug, server);
+        }
 
-        if (!result) {
-            throw new Error("Không thể trích xuất stream từ GavangTV");
+        if (!result || !result.streamUrl) {
+            throw new Error('Không tìm thấy stream URL cho trận này');
         }
 
         const elapsed = Date.now() - start;
@@ -136,18 +227,19 @@ router.get('/api/extract', async (req, res) => {
         return res.json({
             success: true,
             streamUrl: result.streamUrl,
+            flvUrl: result.flvUrl || '',
             iframeSrc: result.iframeSrc || '',
             servers: result.servers || [],
-            source: url,
+            matchInfo: result.matchInfo || {},
+            source: activeSource,
             elapsedMs: elapsed,
         });
     } catch (err) {
         const elapsed = Date.now() - start;
-        const isTimeout = err.message?.includes('timeout') || err.message?.includes('Timeout');
         console.error(`[extract] ✗ Error after ${elapsed}ms: ${err.message}`);
-        return res.status(isTimeout ? 504 : 500).json({
+        return res.status(500).json({
             success: false,
-            error: isTimeout ? 'Hết thời gian — không tìm thấy stream.' : `Lỗi: ${err.message}`,
+            error: `Lỗi: ${err.message}`,
             elapsedMs: elapsed,
         });
     }
@@ -170,7 +262,8 @@ router.get('/api/proxy', (req, res) => {
         'cdn.', '.cdn', 'live.', '.live',
         'fshcgroup.com', 'xoilacz',
         'sportliveapiz.com',
-        'fastestcdn-global.com', 'gv05'
+        'fastestcdn-global.com', 'gv05',
+        'cdnfaster', 'cdnokvip',
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
     if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);
