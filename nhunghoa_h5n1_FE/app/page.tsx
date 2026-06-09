@@ -26,7 +26,7 @@ export default function Home() {
   const [showAllLive, setShowAllLive] = useState(false);
 
   // Nguồn phát mặc định
-  const [source, setSource] = useState<'timbageek' | 'gavangtv'>('timbageek');
+  const [source, setSource] = useState<'timbageek' | 'gavangtv'>('gavangtv');
 
   // Đọc nguồn ưu tiên từ URL query hoặc localStorage
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const querySource = params.get('source') as 'timbageek' | 'gavangtv';
       const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'gavangtv';
-      const activeSrc = querySource || savedSource || 'timbageek';
+      const activeSrc = querySource || savedSource || 'gavangtv';
       if (activeSrc === 'timbageek' || activeSrc === 'gavangtv') {
         setSource(activeSrc);
       }

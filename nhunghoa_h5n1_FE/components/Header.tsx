@@ -19,7 +19,7 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
     const router = useRouter();
 
     // Đồng bộ local source state
-    const [localSource, setLocalSource] = useState<'timbageek' | 'gavangtv'>('timbageek');
+    const [localSource, setLocalSource] = useState<'timbageek' | 'gavangtv'>('gavangtv');
 
     useEffect(() => {
         setMounted(true);
