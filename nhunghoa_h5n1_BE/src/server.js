@@ -9,7 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
 const { prewarmCache: prewarmCdnokvip } = require('./scraper_cdnokvip');
-const { prewarmCache: prewarmGavangtv } = require('./scraper_gavangtv_new');
+const { prewarmCache: prewarmTieulamtv } = require('./scraper_tieulamtv');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -71,5 +71,5 @@ app.listen(PORT, async () => {
 
     // Pre-warm caches
     prewarmCdnokvip();
-    prewarmGavangtv();
+    prewarmTieulamtv();
 });
