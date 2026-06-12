@@ -8,8 +8,8 @@ import { usePathname, useRouter } from 'next/navigation';
 
 interface HeaderProps {
     onLogoClick?: () => void;
-    currentSource?: 'timbageek' | 'gavangtv';
-    onSourceChange?: (source: 'timbageek' | 'gavangtv') => void;
+    currentSource?: 'timbageek' | 'tieulamtv';
+    onSourceChange?: (source: 'timbageek' | 'tieulamtv') => void;
 }
 
 export default function Header({ onLogoClick, currentSource, onSourceChange }: HeaderProps) {
@@ -19,12 +19,12 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
     const router = useRouter();
 
     // Đồng bộ local source state
-    const [localSource, setLocalSource] = useState<'timbageek' | 'gavangtv'>('gavangtv');
+    const [localSource, setLocalSource] = useState<'timbageek' | 'tieulamtv'>('tieulamtv');
 
     useEffect(() => {
         setMounted(true);
-        const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'gavangtv';
-        if (savedSource && (savedSource === 'timbageek' || savedSource === 'gavangtv')) {
+        const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'tieulamtv';
+        if (savedSource && (savedSource === 'timbageek' || savedSource === 'tieulamtv')) {
             setLocalSource(savedSource);
             if (onSourceChange && !currentSource) {
                 onSourceChange(savedSource);
@@ -34,7 +34,7 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
 
     const activeSource = currentSource || localSource;
 
-    const handleSourceSelect = (src: 'timbageek' | 'gavangtv') => {
+    const handleSourceSelect = (src: 'timbageek' | 'tieulamtv') => {
         localStorage.setItem('h5n1_preferred_source', src);
         setLocalSource(src);
         if (onSourceChange) {
@@ -117,15 +117,15 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
                             Lương Sơn
                         </button>
                         <button
-                            onClick={() => handleSourceSelect('gavangtv')}
+                            onClick={() => handleSourceSelect('tieulamtv')}
                             className={`relative px-3.5 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                                activeSource === 'gavangtv'
+                                activeSource === 'tieulamtv'
                                     ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-sm font-black'
-                                    : 'text-foreground/60 hover:text-foreground hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
+                                     : 'text-foreground/60 hover:text-foreground hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
                             }`}
                         >
-                            <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'gavangtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                            Gà Vàng
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'tieulamtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                            Tiểu Lâm
                         </button>
                     </div>
                 </div>
@@ -193,15 +193,15 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
                             Lương Sơn
                         </button>
                         <button
-                            onClick={() => handleSourceSelect('gavangtv')}
+                            onClick={() => handleSourceSelect('tieulamtv')}
                             className={`px-2.5 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1 ${
-                                activeSource === 'gavangtv'
+                                activeSource === 'tieulamtv'
                                     ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-xs font-black'
                                     : 'text-foreground/60'
                             }`}
                         >
-                            <span className={`w-1 h-1 rounded-full ${activeSource === 'gavangtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                            Gà Vàng
+                            <span className={`w-1 h-1 rounded-full ${activeSource === 'tieulamtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                            Tiểu Lâm
                         </button>
                     </div>
                 </div>

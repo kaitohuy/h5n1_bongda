@@ -26,16 +26,16 @@ export default function Home() {
   const [showAllLive, setShowAllLive] = useState(false);
 
   // Nguồn phát mặc định
-  const [source, setSource] = useState<'timbageek' | 'gavangtv'>('gavangtv');
+  const [source, setSource] = useState<'timbageek' | 'tieulamtv'>('tieulamtv');
 
   // Đọc nguồn ưu tiên từ URL query hoặc localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      const querySource = params.get('source') as 'timbageek' | 'gavangtv';
-      const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'gavangtv';
-      const activeSrc = querySource || savedSource || 'gavangtv';
-      if (activeSrc === 'timbageek' || activeSrc === 'gavangtv') {
+      const querySource = params.get('source') as 'timbageek' | 'tieulamtv';
+      const savedSource = localStorage.getItem('h5n1_preferred_source') as 'timbageek' | 'tieulamtv';
+      const activeSrc = querySource || savedSource || 'tieulamtv';
+      if (activeSrc === 'timbageek' || activeSrc === 'tieulamtv') {
         setSource(activeSrc);
       }
     }
@@ -72,7 +72,7 @@ export default function Home() {
         }
 
         // cdnokvip: status là number (0=upcoming,1=live,3=finished,-1=cancelled)
-        // Gavang: status đã là string "Trực tiếp"/"Sắp tới"/"Đã kết thúc"
+        // TieulamTV: status đã là string "Trực tiếp"/"Sắp tới"/"Đã kết thúc"
         let statusMapped: Match['status'] = 'Sắp tới';
         if (typeof m.status === 'number') {
           statusMapped = (m.status === 1 || m.isLive) ? 'Trực tiếp'
@@ -193,7 +193,7 @@ export default function Home() {
   // Spotlight Match - ưu tiên: 1) hot+live, 2) hot bắt kỳ, 3) live bất kỳ, 4) trận đầu tiên
   const spotlightMatch = useMemo(() => {
     return (
-      matches.find(m => m.isSuperHot) ||                                          // ưu tiên cao nhất: trận Gà Siêu Mồm
+      matches.find(m => m.isSuperHot) ||                                          // ưu tiên cao nhất: trận Siêu Hot
       matches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
       matches.find(m => m.isHot || m.section === 'hot') ||
       matches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
