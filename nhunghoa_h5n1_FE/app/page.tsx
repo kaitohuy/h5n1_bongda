@@ -203,7 +203,7 @@ export default function Home() {
 
   // Hot Matches
   const hotMatches = useMemo(() => {
-    return matches.filter(m => m.isHot || m.section === 'hot');
+    return matches.filter(m => m.isHot || m.section === 'hot' || m.status === 'Trực tiếp' || m.section === 'live');
   }, [matches]);
 
   // Live Matches

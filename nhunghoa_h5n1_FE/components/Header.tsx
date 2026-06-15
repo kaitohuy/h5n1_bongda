@@ -105,28 +105,30 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
                     {/* Hàng 2: Bộ chọn nguồn */}
                     <div className="flex items-center gap-1.5">
                         <span className="text-[10px] text-foreground/45 uppercase tracking-wider pl-1">Nguồn:</span>
-                        <button
-                            onClick={() => handleSourceSelect('timbageek')}
-                            className={`relative px-3.5 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                                activeSource === 'timbageek'
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-sm font-black'
-                                    : 'text-foreground/60 hover:text-foreground hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
-                            }`}
-                        >
-                            <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'timbageek' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                            Lương Sơn
-                        </button>
-                        <button
-                            onClick={() => handleSourceSelect('tieulamtv')}
-                            className={`relative px-3.5 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 ${
-                                activeSource === 'tieulamtv'
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-sm font-black'
-                                     : 'text-foreground/60 hover:text-foreground hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
-                            }`}
-                        >
-                            <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'tieulamtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                            Tiểu Lâm
-                        </button>
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-900/80 p-0.5 rounded-xl border border-border-theme/20 shadow-sm">
+                            <button
+                                onClick={() => handleSourceSelect('timbageek')}
+                                className={`px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+                                    activeSource === 'timbageek'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md font-bold'
+                                        : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'timbageek' ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
+                                Lương Sơn
+                            </button>
+                            <button
+                                onClick={() => handleSourceSelect('tieulamtv')}
+                                className={`px-4 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+                                    activeSource === 'tieulamtv'
+                                        ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md font-bold'
+                                        : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                            >
+                                <span className={`w-1.5 h-1.5 rounded-full ${activeSource === 'tieulamtv' ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
+                                Tiểu Lâm
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -180,27 +182,27 @@ export default function Header({ onLogoClick, currentSource, onSourceChange }: H
                     <div className="w-[1px] h-4 bg-border-theme/40" />
 
                     {/* Mobile Sources */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center bg-white dark:bg-slate-900/80 p-0.5 rounded-lg border border-border-theme/20 shadow-sm">
                         <button
                             onClick={() => handleSourceSelect('timbageek')}
-                            className={`px-2.5 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1 ${
+                            className={`px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-1 ${
                                 activeSource === 'timbageek'
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-xs font-black'
-                                    : 'text-foreground/60'
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold shadow-sm'
+                                    : 'text-foreground/70 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
-                            <span className={`w-1 h-1 rounded-full ${activeSource === 'timbageek' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                            <span className={`w-1 h-1 rounded-full ${activeSource === 'timbageek' ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
                             Lương Sơn
                         </button>
                         <button
                             onClick={() => handleSourceSelect('tieulamtv')}
-                            className={`px-2.5 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1 ${
+                            className={`px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-1 ${
                                 activeSource === 'tieulamtv'
-                                    ? 'bg-slate-100 dark:bg-slate-700 text-foreground border border-border-theme shadow-xs font-black'
-                                    : 'text-foreground/60'
+                                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-extrabold shadow-sm'
+                                    : 'text-foreground/70 hover:bg-slate-100 dark:hover:bg-slate-800'
                             }`}
                         >
-                            <span className={`w-1 h-1 rounded-full ${activeSource === 'tieulamtv' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                            <span className={`w-1 h-1 rounded-full ${activeSource === 'tieulamtv' ? 'bg-white animate-pulse' : 'bg-slate-400'}`} />
                             Tiểu Lâm
                         </button>
                     </div>
