@@ -76,8 +76,8 @@ router.get('/api/matches', async (req, res) => {
         if (safeFilter === 'live') {
             matches = allMatches.filter(m => m.status === 1 || m.isLive);
         } else if (safeFilter === 'hot') {
-            // timbageek lọc theo view >= 46000, tieulamtv có thể dùng viewNumber hoặc m.pinHot
-            matches = allMatches.filter(m => m.viewNumber >= 46000 || m.isHot);
+            // Bao gồm cả các trận đang diễn ra (status === 1 hoặc isLive) và các trận có cờ hot
+            matches = allMatches.filter(m => m.viewNumber >= 46000 || m.isHot || m.status === 1 || m.isLive);
         } else if (safeFilter === 'today') {
             const today = new Date();
             const startOfDay = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
