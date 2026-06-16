@@ -173,7 +173,7 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
     useEffect(() => {
         if (selectedLeagueIdx !== null) {
             const league = leagues[selectedLeagueIdx];
-            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('world-cup'));
+            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('vck-world-cup'));
             if (isWc && wcTab === 'qualifiers') {
                 const region = wcRegions[activeRegionIdx];
                 fetchRegionStanding(region.name, region.url);
@@ -184,7 +184,7 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
     useEffect(() => {
         if (selectedLeagueIdx !== null) {
             const league = leagues[selectedLeagueIdx];
-            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('world-cup'));
+            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('vck-world-cup'));
             if (isWc && wcTab === 'knockout') {
                 fetchWcKnockout();
             }
@@ -794,7 +794,7 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
                 ) : (
                     (() => {
                         const selectedLeague = leagues[selectedLeagueIdx];
-                        const isWc = selectedLeague && (selectedLeague.leagueName === 'VCK World Cup' || selectedLeague.fullUrl?.includes('world-cup'));
+                        const isWc = selectedLeague && (selectedLeague.leagueName === 'VCK World Cup' || selectedLeague.fullUrl?.includes('vck-world-cup'));
                         if (isWc) {
                             return renderWorldCupView(selectedLeague, selectedLeagueIdx);
                         }
