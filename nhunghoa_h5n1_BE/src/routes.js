@@ -265,6 +265,7 @@ router.get('/api/proxy', (req, res) => {
         'fastestcdn-global.com', 'gv05',
         'cdnfaster', 'cdnokvip',
         'vsc100.com', 'secufun.xyz',
+        'asynccdn.xyz', '100ycdn.com',
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
     if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);
@@ -280,7 +281,7 @@ router.get('/api/proxy', (req, res) => {
         || parsedUrl.hostname.includes('livecdnem.com')) {
         referer = 'https://xlz.livecdnem.com/';
         origin = 'https://xlz.livecdnem.com';
-    } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com')) {
+    } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com') || parsedUrl.hostname.includes('asynccdn.xyz') || parsedUrl.hostname.includes('100ycdn.com')) {
         referer = 'https://sv1.tieulam1.live/';
         origin = 'https://sv1.tieulam1.live';
     }

@@ -173,7 +173,7 @@ async function extractStream(slug, reqServerIndex = null) {
 
         if (res.ok) {
             const data = await res.json();
-            const liveUrl = data?.source || data?.hd_1 || data?.hd_2;
+            const liveUrl = data?.hd_1 || data?.hd_2 || data?.hd_3 || data?.source;
             if (liveUrl && liveUrl.startsWith('http')) {
                 streamUrl = liveUrl;
                 console.log(`[tieulamtv] Found live stream URL from live API: ${streamUrl}`);
