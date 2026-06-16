@@ -81,6 +81,15 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
                 }
             });
         });
+
+        // Ép category GIẢI NỔI BẬT cho WC / VCK World Cup để đồng bộ dữ liệu
+        merged = merged.map(l => {
+            const isWc = l.leagueName === 'WC' || l.leagueName === 'VCK World Cup' || l.fullUrl?.includes('vck-world-cup') || l.fullUrl?.includes('world-cup');
+            if (isWc) {
+                return { ...l, category: 'GIẢI NỔI BẬT' };
+            }
+            return l;
+        });
         
         setLeagues(merged);
     }, [initialLeagues, navigation]);
@@ -441,25 +450,26 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
         }
 
         const groupNames = tables.map(t => t.title.replace('Bảng ', '').trim());
-        const activeTable = tables[activeGroupIdx] || tables[0];
+
+        const scrollToGroup = (gIdx: number) => {
+            const el = document.getElementById(`wc-group-${gIdx}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        };
 
         return (
             <div className="flex flex-col gap-6 w-full animate-in">
                 {/* Group Selector bar */}
-                <div className="w-full bg-[var(--card-bg)] border border-border-theme rounded-xl p-3 shadow-sm">
-                    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                <div className="w-full bg-[var(--card-bg)] border border-border-theme rounded-xl p-3.5 shadow-sm sticky top-[72px] z-20 backdrop-blur-md bg-opacity-80">
+                    <div className="flex flex-wrap items-center gap-2">
                         <span className="text-xs font-bold text-foreground/50 uppercase tracking-wider pl-2 shrink-0 select-none">Bảng đấu:</span>
                         {groupNames.map((name, gIdx) => {
-                            const isActive = activeGroupIdx === gIdx;
                             return (
                                 <button
                                     key={`group-btn-${gIdx}`}
-                                    onClick={() => setActiveGroupIdx(gIdx)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all shrink-0 ${
-                                        isActive
-                                            ? 'bg-[#28A745] text-white shadow-sm'
-                                            : 'bg-[var(--header-btn-bg)] hover:bg-[var(--header-btn-hover)] text-foreground/80'
-                                    }`}
+                                    onClick={() => scrollToGroup(gIdx)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-black bg-[var(--header-btn-bg)] hover:bg-[#28A745] hover:text-white text-foreground/85 transition-all shrink-0 cursor-pointer"
                                 >
                                     Bảng {name}
                                 </button>
@@ -468,8 +478,19 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
                     </div>
                 </div>
 
-                {/* Table for active group */}
-                {renderSingleWcTable(activeTable.title, activeTable.teams)}
+                {/* List of all group tables */}
+                <div className="flex flex-col gap-8">
+                    {tables.map((table, gIdx) => (
+                        <div 
+                            id={`wc-group-${gIdx}`} 
+                            key={`group-table-${gIdx}`} 
+                            className="scroll-mt-24"
+                            style={{ scrollMarginTop: '140px' }}
+                        >
+                            {renderSingleWcTable(table.title, table.teams)}
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     };
@@ -667,12 +688,32 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
 
     const cleanCat = (cat: string) => cat.replace(/KHU VỰC/i, '').trim();
 
-    const prominentLeagues = leagues.filter(l => !l.category || l.category === 'GIẢI NỔI BẬT' || l.category === 'Giai noi bat' || l.category === 'BXH FIFA');
+    const prominentLeagues = leagues.filter(l => {
+        const isWc = l.leagueName === 'WC' || l.leagueName === 'VCK World Cup' || l.fullUrl?.includes('vck-world-cup') || l.fullUrl?.includes('world-cup');
+        return isWc || !l.category || l.category === 'GIẢI NỔI BẬT' || l.category === 'Giai noi bat' || l.category === 'BXH FIFA';
+    });
+
+    // Đưa WC/VCK World Cup lên đầu danh sách giải nổi bật
+    const wcIndexInProminent = prominentLeagues.findIndex(l => 
+        l.leagueName === 'WC' || 
+        l.leagueName === 'VCK World Cup' || 
+        l.fullUrl?.includes('vck-world-cup') ||
+        l.fullUrl?.includes('world-cup')
+    );
+    if (wcIndexInProminent > 0) {
+        const [wcLeague] = prominentLeagues.splice(wcIndexInProminent, 1);
+        prominentLeagues.unshift(wcLeague);
+    }
     
     // Thu thập danh mục từ leagues đã được merge
     const catGroups = leagues.reduce((acc, l) => {
         const cat = l.category || 'Hệ thống';
         if (cat === 'GIẢI NỔI BẬT' || cat === 'Giai noi bat' || cat === 'BXH FIFA') return acc;
+        
+        // Loại trừ WC/VCK World Cup ra khỏi danh sách khu vực ở dưới
+        const isWc = l.leagueName === 'WC' || l.leagueName === 'VCK World Cup' || l.fullUrl?.includes('vck-world-cup') || l.fullUrl?.includes('world-cup');
+        if (isWc) return acc;
+
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(l);
         return acc;
