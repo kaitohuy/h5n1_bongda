@@ -239,7 +239,7 @@ async function fetchFromBongda24h() {
             
             // Map danh mục
             let category = catMap[heading] || 'Khu vực khác';
-            const prominentLeagues = ['Ngoại hạng Anh', 'Cúp C1', 'Cúp C2', 'V-League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1'];
+            const prominentLeagues = ['Ngoại hạng Anh', 'Cúp C1', 'Cúp C2', 'V-League', 'La Liga', 'Serie A', 'Bundesliga', 'Ligue 1', 'VCK World Cup'];
             if (prominentLeagues.some(l => heading.includes(l))) category = 'GIẢI NỔI BẬT';
 
             // Phân tích Header
