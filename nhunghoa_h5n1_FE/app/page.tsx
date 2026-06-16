@@ -5,6 +5,7 @@ import { Loader2, WifiOff, ChevronDown } from 'lucide-react';
 import Header from '@/components/Header';
 import MatchCard from '@/components/MatchCard';
 import VideoPlayer from '@/components/VideoPlayer';
+import MatchStats from '@/components/MatchStats';
 import { Match } from './types';
 
 const BE_URL = process.env.NEXT_PUBLIC_BE_URL || 'http://localhost:8000';
@@ -14,6 +15,7 @@ export default function Home() {
   const [streamUrl, setStreamUrl] = useState('');
   const [activeServer, setActiveServer] = useState<string>('');
   const [availableServers, setAvailableServers] = useState<string[]>([]);
+  const [rawServers, setRawServers] = useState<any[]>([]);
   const [loadingStreamMsg, setLoadingStreamMsg] = useState('');
 
   const [matches, setMatches] = useState<Match[]>([]);
@@ -163,10 +165,13 @@ export default function Home() {
         if (!data.success) throw new Error(data.error);
         if (mounted) {
           if (data.servers && data.servers.length > 0) {
+            setRawServers(data.servers);
             const serverLabels = data.servers.map((s: any) =>
               typeof s === 'string' ? s : (s.label || s.slug || `Server ${s.id || ''}`)
             );
             setAvailableServers(serverLabels);
+          } else {
+            setRawServers([]);
           }
           const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
           const cfWorker = process.env.NEXT_PUBLIC_PROXY_URL || 'https://h5n1-proxy.huynguyendoan0305.workers.dev';
@@ -186,6 +191,7 @@ export default function Home() {
     setActiveMatch(match);
     setActiveServer('');
     setAvailableServers([]);
+    setRawServers([]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -241,15 +247,22 @@ export default function Home() {
       <main className="max-w-7xl mx-auto px-4 py-8 space-y-12">
         {/* Video Player Popup/Block */}
         {activeMatch && (
-          <div className="mb-10 ring-1 ring-border shadow-2xl rounded-2xl bg-black/50">
-            <VideoPlayer
+          <div className="space-y-6 mb-10 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="ring-1 ring-border shadow-2xl rounded-2xl bg-black/50">
+              <VideoPlayer
+                match={activeMatch}
+                streamUrl={streamUrl}
+                loadingMsg={loadingStreamMsg}
+                activeServer={activeServer}
+                availableServers={availableServers}
+                onServerChange={setActiveServer}
+                onClose={() => { setActiveMatch(null); setStreamUrl(''); setLoadingStreamMsg(''); }}
+              />
+            </div>
+            <MatchStats
               match={activeMatch}
-              streamUrl={streamUrl}
-              loadingMsg={loadingStreamMsg}
-              activeServer={activeServer}
-              availableServers={availableServers}
-              onServerChange={setActiveServer}
-              onClose={() => { setActiveMatch(null); setStreamUrl(''); setLoadingStreamMsg(''); }}
+              servers={rawServers}
+              BE_URL={BE_URL}
             />
           </div>
         )}
