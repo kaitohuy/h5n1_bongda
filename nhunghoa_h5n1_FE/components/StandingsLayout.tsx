@@ -593,7 +593,7 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
                         padding: 10px 12px;
                         font-size: 13px;
                         vertical-align: middle;
-                        border: none !important;
+                        border: 0 solid transparent;
                     }
                     .worldcup-bracket-container .link-club {
                         display: flex;
