@@ -23,6 +23,10 @@ export type LeagueStandings = {
     teams: Team[];
     fullUrl?: string;
     vnRank?: string; // Thứ hạng Việt Nam (chỉ cho FIFA)
+    isMultiTable?: boolean;
+    tables?: { title: string; teams: Team[] }[];
+    isKnockout?: boolean;
+    knockoutHtml?: string;
 };
 
 export type NavigationItem = {
@@ -39,6 +43,24 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
     const [expandedLeagues, setExpandedLeagues] = useState<Record<number, boolean>>({});
 
     const BE_URL = process.env.NEXT_PUBLIC_BE_URL || 'http://localhost:8000';
+
+    // State variables for World Cup
+    const [wcTab, setWcTab] = useState<'groups' | 'qualifiers' | 'knockout'>('groups');
+    const [activeGroupIdx, setActiveGroupIdx] = useState<number>(0);
+    const [activeRegionIdx, setActiveRegionIdx] = useState<number>(0);
+    const [regionData, setRegionData] = useState<Record<string, { isMultiTable?: boolean; tables?: { title: string; teams: Team[] }[]; teams?: Team[]; isKnockout?: boolean; knockoutHtml?: string }>>({});
+    const [regionLoading, setRegionLoading] = useState<boolean>(false);
+    const [wcKnockoutHtml, setWcKnockoutHtml] = useState<string>('');
+    const [wcKnockoutLoading, setWcKnockoutLoading] = useState<boolean>(false);
+
+    const wcRegions = [
+        { name: 'Châu Á', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-chau-a/bang-xep-hang-82.html' },
+        { name: 'Châu Âu', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-chau-au/bang-xep-hang-89.html' },
+        { name: 'Nam Mỹ', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-nam-my/bang-xep-hang-83.html' },
+        { name: 'Bắc Trung Mỹ', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-bac-trung-my/bang-xep-hang-91.html' },
+        { name: 'Châu Phi', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-chau-phi/bang-xep-hang-201.html' },
+        { name: 'Châu Đại Dương', url: 'https://bongda24h.vn/vong-loai-world-cup-khu-vuc-chau-dai-duong/bang-xep-hang-363.html' }
+    ];
 
     // Trộn dữ liệu khi mount hoặc khi props thay đổi
     useEffect(() => {
@@ -78,10 +100,31 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
         try {
             const res = await fetch(`${BE_URL}/api/standings/detail?url=${encodeURIComponent(url)}`);
             const data = await res.json();
-            if (data.success && data.teams) {
+            if (data.success) {
                 setLeagues(prevLeagues => {
                     const updated = [...prevLeagues];
-                    updated[idx] = { ...updated[idx], teams: data.teams };
+                    if (data.isKnockout) {
+                        updated[idx] = { 
+                            ...updated[idx], 
+                            isKnockout: true, 
+                            knockoutHtml: data.html,
+                            teams: []
+                        };
+                    } else if (data.isMultiTable) {
+                        updated[idx] = { 
+                            ...updated[idx], 
+                            isMultiTable: true, 
+                            tables: data.tables,
+                            teams: []
+                        };
+                    } else {
+                        updated[idx] = { 
+                            ...updated[idx], 
+                            isMultiTable: false, 
+                            isKnockout: false,
+                            teams: data.teams || []
+                        };
+                    }
                     return updated;
                 });
             }
@@ -91,6 +134,62 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
             setLoadingIdx(null);
         }
     };
+
+    const fetchRegionStanding = async (regionName: string, url: string) => {
+        if (regionData[regionName]) return;
+        setRegionLoading(true);
+        try {
+            const res = await fetch(`${BE_URL}/api/standings/detail?url=${encodeURIComponent(url)}`);
+            const data = await res.json();
+            if (data.success) {
+                setRegionData(prev => ({
+                    ...prev,
+                    [regionName]: data
+                }));
+            }
+        } catch (error) {
+            console.error('Lỗi khi tải bảng xếp hạng vòng loại khu vực:', error);
+        } finally {
+            setRegionLoading(false);
+        }
+    };
+
+    const fetchWcKnockout = async () => {
+        if (wcKnockoutHtml) return;
+        setWcKnockoutLoading(true);
+        try {
+            const res = await fetch(`${BE_URL}/api/standings/detail?url=${encodeURIComponent('https://bongda24h.vn/vck-world-cup/vong-loai-truc-tiep.html')}`);
+            const data = await res.json();
+            if (data.success && data.isKnockout) {
+                setWcKnockoutHtml(data.html);
+            }
+        } catch (error) {
+            console.error('Lỗi khi tải sơ đồ thi đấu knockout:', error);
+        } finally {
+            setWcKnockoutLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedLeagueIdx !== null) {
+            const league = leagues[selectedLeagueIdx];
+            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('world-cup'));
+            if (isWc && wcTab === 'qualifiers') {
+                const region = wcRegions[activeRegionIdx];
+                fetchRegionStanding(region.name, region.url);
+            }
+        }
+    }, [selectedLeagueIdx, wcTab, activeRegionIdx, leagues]);
+
+    useEffect(() => {
+        if (selectedLeagueIdx !== null) {
+            const league = leagues[selectedLeagueIdx];
+            const isWc = league && (league.leagueName === 'VCK World Cup' || league.fullUrl?.includes('world-cup'));
+            if (isWc && wcTab === 'knockout') {
+                fetchWcKnockout();
+            }
+        }
+    }, [selectedLeagueIdx, wcTab, leagues]);
 
     // Khi chọn giải từ sidebar, ta chuyển sang chế độ tập trung vào 1 giải
     useEffect(() => {
@@ -255,6 +354,317 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
         );
     };
 
+    const renderSingleWcTable = (title: string, teams: Team[]) => {
+        return (
+            <div className="w-full overflow-x-auto bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm animate-in">
+                <div className="bg-[var(--header-bg)] border-b border-border-theme px-4 py-3">
+                    <h3 className="font-extrabold text-foreground tracking-tight text-sm uppercase">{title}</h3>
+                </div>
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                    <thead>
+                        <tr className="bg-[var(--header-bg)] border-b border-border-theme text-foreground/75 text-xs font-bold uppercase">
+                            <th className="py-3 px-3 w-12 text-center">TT</th>
+                            <th className="py-3 px-3">Đội</th>
+                            <th className="py-3 px-2 text-center w-16">Trận</th>
+                            <th className="py-3 px-2 text-center w-16">Thắng</th>
+                            <th className="py-3 px-2 text-center w-16">Hòa</th>
+                            <th className="py-3 px-2 text-center w-16">Bại</th>
+                            <th className="py-3 px-2 text-center w-16">HS</th>
+                            <th className="py-3 px-2 text-center font-bold w-16">Điểm</th>
+                            <th className="py-3 px-3 text-center w-40">5 trận gần nhất</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {teams.map((team, tIdx) => {
+                            const rankNum = parseInt(team.rank);
+                            const isTop2 = rankNum <= 2;
+                            return (
+                                <tr key={`${title}-${team.teamName}-${tIdx}`} className={`border-b border-border-theme/40 hover:bg-[var(--header-btn-bg)] transition-colors text-sm ${tIdx % 2 === 0 ? 'bg-black/[0.01] dark:bg-white/[0.01]' : ''}`}>
+                                    <td className="py-3.5 px-3 text-center font-semibold">
+                                        <div className={`w-5 h-5 mx-auto flex items-center justify-center rounded-full text-[10px] font-bold text-white ${isTop2 ? 'bg-[#28A745]' : 'bg-gray-400 dark:bg-gray-600'}`}>
+                                            {team.rank}
+                                        </div>
+                                    </td>
+                                    <td className="py-3.5 px-3 font-semibold flex items-center gap-3">
+                                        {team.logo && (
+                                            <div className="w-8 h-5.5 relative bg-foreground/5 border border-border-theme/30 rounded-sm overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                                <img src={team.logo} alt={team.teamName} className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
+                                        <span className="hover:text-[var(--logo-text-accent)] transition-colors">{team.teamName}</span>
+                                    </td>
+                                    <td className="py-3.5 px-2 text-center text-foreground/80 font-medium">{team.played}</td>
+                                    <td className="py-3.5 px-2 text-center text-foreground/80 font-medium">{team.won}</td>
+                                    <td className="py-3.5 px-2 text-center text-foreground/80 font-medium">{team.drawn}</td>
+                                    <td className="py-3.5 px-2 text-center text-foreground/80 font-medium">{team.lost}</td>
+                                    <td className="py-3.5 px-2 text-center text-foreground/80 font-semibold">{team.gd}</td>
+                                    <td className="py-3.5 px-2 text-center font-bold text-base">{team.points}</td>
+                                    <td className="py-3.5 px-3 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                            {team.form && team.form.length > 0 ? team.form.map((f, i) => (
+                                                <span key={`${team.teamName}-form-${i}`} className={`w-5 h-5 flex items-center justify-center text-[10px] font-black rounded ${getFormBadgeColor(f)}`} title={f === 'W' ? 'Thắng' : f === 'D' ? 'Hòa' : 'Thua'}>
+                                                    {getFormLetter(f)}
+                                                </span>
+                                            )) : (
+                                                <span className="text-xs text-foreground/40">-</span>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
+    const renderWcGroups = (league: LeagueStandings, index: number) => {
+        const isLoading = loadingIdx === index;
+        const tables = league.tables || [];
+
+        if (isLoading && tables.length === 0) {
+            return (
+                <div className="p-20 text-center flex flex-col items-center gap-4 bg-[var(--card-bg)] rounded-xl border border-border-theme shadow-sm">
+                    <div className="w-12 h-12 border-4 border-[#28A745] border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-foreground/70 font-medium">Đang tải danh sách bảng đấu...</p>
+                </div>
+            );
+        }
+
+        if (tables.length === 0) {
+            return (
+                <div className="p-10 text-center text-foreground/60 bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm">
+                    Không tìm thấy dữ liệu bảng đấu.
+                </div>
+            );
+        }
+
+        const groupNames = tables.map(t => t.title.replace('Bảng ', '').trim());
+        const activeTable = tables[activeGroupIdx] || tables[0];
+
+        return (
+            <div className="flex flex-col gap-6 w-full animate-in">
+                {/* Group Selector bar */}
+                <div className="w-full bg-[var(--card-bg)] border border-border-theme rounded-xl p-3 shadow-sm">
+                    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                        <span className="text-xs font-bold text-foreground/50 uppercase tracking-wider pl-2 shrink-0 select-none">Bảng đấu:</span>
+                        {groupNames.map((name, gIdx) => {
+                            const isActive = activeGroupIdx === gIdx;
+                            return (
+                                <button
+                                    key={`group-btn-${gIdx}`}
+                                    onClick={() => setActiveGroupIdx(gIdx)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all shrink-0 ${
+                                        isActive
+                                            ? 'bg-[#28A745] text-white shadow-sm'
+                                            : 'bg-[var(--header-btn-bg)] hover:bg-[var(--header-btn-hover)] text-foreground/80'
+                                    }`}
+                                >
+                                    Bảng {name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Table for active group */}
+                {renderSingleWcTable(activeTable.title, activeTable.teams)}
+            </div>
+        );
+    };
+
+    const renderWcQualifiers = () => {
+        const region = wcRegions[activeRegionIdx];
+        const data = regionData[region.name];
+        const isLoading = regionLoading;
+
+        return (
+            <div className="flex flex-col gap-6 w-full animate-in">
+                {/* Region Selector bar */}
+                <div className="w-full bg-[var(--card-bg)] border border-border-theme rounded-xl p-3 shadow-sm">
+                    <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar pb-1">
+                        <span className="text-xs font-bold text-foreground/50 uppercase tracking-wider pl-2 shrink-0 select-none">Khu vực:</span>
+                        {wcRegions.map((r, rIdx) => {
+                            const isActive = activeRegionIdx === rIdx;
+                            return (
+                                <button
+                                    key={`region-btn-${rIdx}`}
+                                    onClick={() => setActiveRegionIdx(rIdx)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all shrink-0 ${
+                                        isActive
+                                            ? 'bg-[#28A745] text-white shadow-sm'
+                                            : 'bg-[var(--header-btn-bg)] hover:bg-[var(--header-btn-hover)] text-foreground/80'
+                                    }`}
+                                >
+                                    {r.name}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Qualifiers content */}
+                {isLoading ? (
+                    <div className="p-20 text-center flex flex-col items-center gap-4 bg-[var(--card-bg)] rounded-xl border border-border-theme shadow-sm">
+                        <div className="w-12 h-12 border-4 border-[#28A745] border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-foreground/70 font-medium">Đang tải bảng xếp hạng {region.name}...</p>
+                    </div>
+                ) : data ? (
+                    data.isMultiTable ? (
+                        <div className="flex flex-col gap-8 w-full">
+                            {data.tables?.map((table, tIdx) => (
+                                <div key={`region-table-${tIdx}`} className="w-full">
+                                    {renderSingleWcTable(table.title, table.teams)}
+                                </div>
+                            ))}
+                        </div>
+                    ) : data.teams && data.teams.length > 0 ? (
+                        renderSingleWcTable(`Vòng loại ${region.name}`, data.teams)
+                    ) : (
+                        <div className="p-10 text-center text-foreground/60 bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm">
+                            Không có dữ liệu bảng xếp hạng vòng loại cho khu vực {region.name}.
+                        </div>
+                    )
+                ) : (
+                    <div className="p-10 text-center text-foreground/60 bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm">
+                        Đang đợi tải dữ liệu...
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const renderWcKnockout = () => {
+        const isLoading = wcKnockoutLoading;
+        const html = wcKnockoutHtml;
+
+        if (isLoading) {
+            return (
+                <div className="p-20 text-center flex flex-col items-center gap-4 bg-[var(--card-bg)] rounded-xl border border-border-theme shadow-sm">
+                    <div className="w-12 h-12 border-4 border-[#28A745] border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-foreground/70 font-medium">Đang tải sơ đồ vòng knockout...</p>
+                </div>
+            );
+        }
+
+        if (!html) {
+            return (
+                <div className="p-10 text-center text-foreground/60 bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm">
+                    Không tìm thấy dữ liệu sơ đồ thi đấu.
+                </div>
+            );
+        }
+
+        return (
+            <div className="w-full bg-[var(--card-bg)] border border-border-theme rounded-xl shadow-sm p-4 md:p-6 overflow-x-auto animate-in">
+                <style dangerouslySetInnerHTML={{ __html: `
+                    .worldcup-bracket-container {
+                        min-width: 1200px;
+                        overflow-x: auto;
+                    }
+                    .worldcup-bracket-container table.table-wcp {
+                        width: 100%;
+                        border-collapse: collapse;
+                        font-family: inherit;
+                    }
+                    .worldcup-bracket-container table.table-wcp td {
+                        padding: 10px 12px;
+                        font-size: 13px;
+                        vertical-align: middle;
+                        border: none !important;
+                    }
+                    .worldcup-bracket-container .link-club {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        font-weight: 600;
+                        color: var(--foreground);
+                        text-decoration: none;
+                    }
+                    .worldcup-bracket-container .ic-link-club {
+                        width: 24px;
+                        height: 16px;
+                        object-fit: cover;
+                        border-radius: 2px;
+                        border: 1px solid rgba(0,0,0,0.1);
+                    }
+                    .worldcup-bracket-container .v-green {
+                        color: #28a745;
+                        font-weight: bold;
+                    }
+                    /* Adapt to dark/light theme border and background */
+                    .worldcup-bracket-container td[style*="border"] {
+                        border-color: var(--border-theme) !important;
+                    }
+                    .worldcup-bracket-container td {
+                        color: var(--foreground);
+                    }
+                    .dark .worldcup-bracket-container td {
+                        border-color: rgba(255, 255, 255, 0.15) !important;
+                    }
+                `}} />
+                <div className="worldcup-bracket-container" dangerouslySetInnerHTML={{ __html: html }} />
+            </div>
+        );
+    };
+
+    const renderWorldCupView = (league: LeagueStandings, index: number) => {
+        const isLoading = loadingIdx === index;
+        return (
+            <div className="w-full flex flex-col min-w-0 animate-in">
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 border-b pb-4 border-border-theme gap-4">
+                    <h2 className="text-2xl md:text-3xl font-black tracking-tight text-foreground flex items-center gap-2">
+                        {league.leagueName}
+                        {isLoading && <span className="text-sm font-normal text-foreground/50 animate-pulse">(Đang tải...)</span>}
+                    </h2>
+                </div>
+
+                {/* Sub tabs for World Cup */}
+                <div className="flex border-b border-border-theme mb-6 gap-2 sm:gap-4 overflow-x-auto hide-scrollbar">
+                    <button
+                        onClick={() => setWcTab('groups')}
+                        className={`py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
+                            wcTab === 'groups'
+                                ? 'border-[#28A745] text-[#28A745]'
+                                : 'border-transparent text-foreground/60 hover:text-foreground'
+                        }`}
+                    >
+                        Vòng đấu bảng
+                    </button>
+                    <button
+                        onClick={() => setWcTab('qualifiers')}
+                        className={`py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
+                            wcTab === 'qualifiers'
+                                ? 'border-[#28A745] text-[#28A745]'
+                                : 'border-transparent text-foreground/60 hover:text-foreground'
+                        }`}
+                    >
+                        Vòng loại khu vực
+                    </button>
+                    <button
+                        onClick={() => setWcTab('knockout')}
+                        className={`py-3 px-4 text-sm font-bold border-b-2 whitespace-nowrap transition-all ${
+                            wcTab === 'knockout'
+                                ? 'border-[#28A745] text-[#28A745]'
+                                : 'border-transparent text-foreground/60 hover:text-foreground'
+                        }`}
+                    >
+                        Vòng loại trực tiếp
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="w-full">
+                    {wcTab === 'groups' && renderWcGroups(league, index)}
+                    {wcTab === 'qualifiers' && renderWcQualifiers()}
+                    {wcTab === 'knockout' && renderWcKnockout()}
+                </div>
+            </div>
+        );
+    };
+
     const cleanCat = (cat: string) => cat.replace(/KHU VỰC/i, '').trim();
 
     const prominentLeagues = leagues.filter(l => !l.category || l.category === 'GIẢI NỔI BẬT' || l.category === 'Giai noi bat' || l.category === 'BXH FIFA');
@@ -382,7 +792,14 @@ export default function StandingsLayout({ leagues: initialLeagues, navigation = 
                         </div>
                     )
                 ) : (
-                    renderTable(leagues[selectedLeagueIdx], null, selectedLeagueIdx)
+                    (() => {
+                        const selectedLeague = leagues[selectedLeagueIdx];
+                        const isWc = selectedLeague && (selectedLeague.leagueName === 'VCK World Cup' || selectedLeague.fullUrl?.includes('world-cup'));
+                        if (isWc) {
+                            return renderWorldCupView(selectedLeague, selectedLeagueIdx);
+                        }
+                        return renderTable(selectedLeague, null, selectedLeagueIdx);
+                    })()
                 )}
             </div>
         </div>

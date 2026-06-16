@@ -29,6 +29,16 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
     const [incidentsData, setIncidentsData] = useState<any[]>([]);
     const [lineupsData, setLineupsData] = useState<any>(null);
 
+    // Dynamic states for standing and H2H/upcoming tabs
+    const [standingData, setStandingData] = useState<any>(null);
+    const [isStandingLoading, setIsStandingLoading] = useState(false);
+
+    const [h2hData, setH2HData] = useState<any>(null);
+    const [isH2HLoading, setIsH2HLoading] = useState(false);
+
+    const [h2hSubTab, setH2HSubTab] = useState<'home' | 'all' | 'away'>('all');
+    const [upcomingSubTab, setUpcomingSubTab] = useState<'home' | 'away'>('home');
+
     // 1. Try to find the correct Match ID from the list of servers or the main match ID
     useEffect(() => {
         if (!match) return;
@@ -58,6 +68,8 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
             setStatsData(null);
             setIncidentsData([]);
             setLineupsData(null);
+            setStandingData(null);
+            setH2HData(null);
 
             let foundId: string | null = null;
             let resolvedMatchData: any = null;
@@ -115,6 +127,297 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
             mounted = false;
         };
     }, [match, servers, BE_URL]);
+
+    // Fetch standing data when BXH tab is clicked and we have a competition_id / season_id
+    useEffect(() => {
+        if (activeTab === 'bxh' && matchData?.season_id && !standingData && !isStandingLoading) {
+            const fetchStanding = async () => {
+                setIsStandingLoading(true);
+                try {
+                    const res = await fetch(`${BE_URL}/api/match/${matchData.season_id}/score-data/standing`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json.success && json.data?.data) {
+                            setStandingData(json.data.data);
+                        }
+                    }
+                } catch (e) {
+                    console.error("[MatchStats] Failed to fetch standings:", e);
+                } finally {
+                    setIsStandingLoading(false);
+                }
+            };
+            fetchStanding();
+        }
+    }, [activeTab, matchData, BE_URL, standingData, isStandingLoading]);
+
+    // Fetch H2H data when H2H or Upcoming tabs are clicked and we have activeMatchId
+    useEffect(() => {
+        const isH2HOrUpcoming = activeTab === 'h2h' || activeTab === 'upcoming';
+        if (isH2HOrUpcoming && activeMatchId && !h2hData && !isH2HLoading) {
+            const fetchH2H = async () => {
+                setIsH2HLoading(true);
+                try {
+                    const res = await fetch(`${BE_URL}/api/match/${activeMatchId}/score-data/h2h`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json.success && json.data?.data) {
+                            setH2HData(json.data.data);
+                        }
+                    }
+                } catch (e) {
+                    console.error("[MatchStats] Failed to fetch H2H:", e);
+                } finally {
+                    setIsH2HLoading(false);
+                }
+            };
+            fetchH2H();
+        }
+    }, [activeTab, activeMatchId, BE_URL, h2hData, isH2HLoading]);
+
+    // Helpers
+    const getTeamFlag = (teamName: string, teamId?: string) => {
+        if (matchData) {
+            if (teamId === matchData.home_team?.id && matchData.home_team?.logo) {
+                return matchData.home_team.logo;
+            }
+            if (teamId === matchData.away_team?.id && matchData.away_team?.logo) {
+                return matchData.away_team.logo;
+            }
+            if (teamName.toLowerCase() === matchData.home_team?.name?.toLowerCase() && matchData.home_team?.logo) {
+                return matchData.home_team.logo;
+            }
+            if (teamName.toLowerCase() === matchData.away_team?.name?.toLowerCase() && matchData.away_team?.logo) {
+                return matchData.away_team.logo;
+            }
+        }
+
+        const name = teamName.toLowerCase().trim();
+        const countryMap: Record<string, string> = {
+            'iran': 'ir', 'ir iran': 'ir', 'new zealand': 'nz', 'brazil': 'br',
+            'netherlands': 'nl', 'hà lan': 'nl', 'egypt': 'eg', 'ai cập': 'eg',
+            'morocco': 'ma', 'ma-rốc': 'ma', 'qatar': 'qa', 'spain': 'es', 'tây ban nha': 'es',
+            'austria': 'at', 'áo': 'at', 'belgium': 'be', 'bỉ': 'be', 'mali': 'ml',
+            'gambia': 'gm', 'switzerland': 'ch', 'thụy sỹ': 'ch', 'thụy sĩ': 'ch',
+            'canada': 'ca', 'haiti': 'ht', 'china': 'cn', 'trung quốc': 'cn',
+            'jordan': 'jo', 'saudi arabia': 'sa', 'ả rập xê út': 'sa',
+            'cabo verde': 'cv', 'sweden': 'se', 'thụy điển': 'se', 'japan': 'jp', 'nhật bản': 'jp',
+            'afghanistan': 'af', 'tanzania': 'tz', 'samoa': 'ws', 'new caledonia': 'nc',
+            'vietnam': 'vn', 'việt nam': 'vn'
+        };
+
+        const code = countryMap[name];
+        if (code) {
+            return `https://flagcdn.com/w40/${code}.png`;
+        }
+        return 'https://img.thesports.com/football/team/default.png';
+    };
+
+    const getGroupName = (table: any) => {
+        if (table.conference) {
+            if (table.conference === 'Ranking of third placed teams') {
+                return 'BXH các đội xếp thứ 3';
+            }
+            return table.conference;
+        }
+        if (table.group > 0 && table.group <= 26) {
+            const char = String.fromCharCode(64 + table.group);
+            return `Bảng ${char}`;
+        }
+        return `Bảng đấu ${table.group || ''}`;
+    };
+
+    const getMatchResult = (m: any, activeTeamId: string) => {
+        const homeTeamId = m[5][0];
+        const awayTeamId = m[6][0];
+        const homeScore = Number(m[5][2] || 0);
+        const awayScore = Number(m[6][2] || 0);
+
+        const isActiveHome = homeTeamId === activeTeamId;
+        const isActiveAway = awayTeamId === activeTeamId;
+
+        if (!isActiveHome && !isActiveAway) return { text: 'N/A', color: 'bg-gray-500' };
+
+        const activeScore = isActiveHome ? homeScore : awayScore;
+        const oppScore = isActiveHome ? awayScore : homeScore;
+
+        if (activeScore > oppScore) {
+            return { text: 'Thắng', color: 'bg-emerald-600' };
+        } else if (activeScore < oppScore) {
+            return { text: 'Thua', color: 'bg-red-600' };
+        } else {
+            return { text: 'Hòa', color: 'bg-gray-500' };
+        }
+    };
+
+    const formatMatchTime = (timestamp: number) => {
+        const date = new Date(timestamp * 1000);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${hours}:${minutes} ${day}/${month}`;
+    };
+
+    const renderH2HMatchList = (matches: any[], activeTeamId: string) => {
+        if (!matches || matches.length === 0) {
+            return (
+                <div className="text-center py-4 text-gray-500 text-xs italic">
+                    Không có dữ liệu trận đấu.
+                </div>
+            );
+        }
+        
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {matches.map((m: any) => {
+                    const matchId = m[0];
+                    const compId = m[1];
+                    const timestamp = m[3];
+                    const homeInfo = m[5];
+                    const awayInfo = m[6];
+                    
+                    const homeTeamId = homeInfo[0];
+                    const homeScore = homeInfo[2];
+                    const homeHT = homeInfo[3];
+                    
+                    const awayTeamId = awayInfo[0];
+                    const awayScore = awayInfo[2];
+                    const awayHT = awayInfo[3];
+                    
+                    const homeTeamObj = h2hData?.teams ? Object.values(h2hData.teams).find((t: any) => t.id === homeTeamId) as any : null;
+                    const homeTeamName = homeTeamObj?.short_name_vi || homeTeamObj?.name || homeTeamId;
+                    
+                    const awayTeamObj = h2hData?.teams ? Object.values(h2hData.teams).find((t: any) => t.id === awayTeamId) as any : null;
+                    const awayTeamName = awayTeamObj?.short_name_vi || awayTeamObj?.name || awayTeamId;
+                    
+                    const compObj = h2hData?.competitions ? Object.values(h2hData.competitions).find((c: any) => c.id === compId) as any : null;
+                    const compName = compObj?.short_name_vi || compObj?.name || compId;
+                    
+                    const result = getMatchResult(m, activeTeamId);
+                    
+                    return (
+                        <div key={matchId} className="flex flex-col gap-2 bg-gray-50/50 dark:bg-[#181d29]/40 border border-border-theme p-4 rounded-xl relative transition-colors duration-300">
+                            <div className="flex justify-between items-center text-[10px] md:text-xs text-gray-500 font-medium">
+                                <span className="flex items-center gap-1 font-bold text-amber-500/80">🏆 {compName}</span>
+                                <span className="bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded text-gray-400 font-semibold">{formatMatchTime(timestamp)}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between mt-2">
+                                <div className="w-2/5 flex items-center justify-end gap-2 text-right">
+                                    <span className="text-xs md:text-sm font-semibold truncate max-w-[100px] md:max-w-[120px] text-foreground">{homeTeamName}</span>
+                                    <img 
+                                        src={getTeamFlag(homeTeamObj?.name || homeTeamName, homeTeamId)} 
+                                        alt="flag" 
+                                        className="w-5 h-5 rounded-full object-cover border border-border-theme bg-gray-100 dark:bg-gray-800" 
+                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://img.thesports.com/football/team/default.png'; }} 
+                                    />
+                                </div>
+
+                                <div className="w-1/5 flex flex-col items-center justify-center shrink-0">
+                                    {activeTeamId && (
+                                        <span className={`text-[8px] md:text-[9px] font-bold text-white px-2 py-0.5 rounded uppercase mb-1 shadow-sm ${result.color}`}>
+                                            {result.text}
+                                        </span>
+                                    )}
+                                    <span className="bg-blue-600 text-white text-xs md:text-sm font-bold px-3 py-1 rounded-full shadow-md">
+                                        {homeScore} : {awayScore}
+                                    </span>
+                                </div>
+
+                                <div className="w-2/5 flex items-center justify-start gap-2 text-left">
+                                    <img 
+                                        src={getTeamFlag(awayTeamObj?.name || awayTeamName, awayTeamId)} 
+                                        alt="flag" 
+                                        className="w-5 h-5 rounded-full object-cover border border-border-theme bg-gray-100 dark:bg-gray-800" 
+                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://img.thesports.com/football/team/default.png'; }} 
+                                    />
+                                    <span className="text-xs md:text-sm font-semibold truncate max-w-[100px] md:max-w-[120px] text-foreground">{awayTeamName}</span>
+                                </div>
+                            </div>
+
+                            <div className="text-center text-[10px] text-gray-400 mt-1.5 border-t border-border-theme/40 pt-1.5 font-medium">
+                                HT {homeHT} - {awayHT} | 🟨 0 - 0 | 🟥 0 - 0
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    const renderUpcomingMatchList = (matches: any[]) => {
+        if (!matches || matches.length === 0) {
+            return (
+                <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                    <span className="text-3xl block mb-2">📅</span>
+                    <p className="text-sm font-semibold mb-1">Chưa có trận đấu sắp tới</p>
+                    <p className="text-xs text-gray-400">Không tìm thấy lịch thi đấu tiếp theo.</p>
+                </div>
+            );
+        }
+        
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {matches.map((m: any) => {
+                    const matchId = m[0];
+                    const compId = m[1];
+                    const timestamp = m[3];
+                    const homeInfo = m[5];
+                    const awayInfo = m[6];
+                    
+                    const homeTeamId = homeInfo[0];
+                    const awayTeamId = awayInfo[0];
+                    
+                    const homeTeamObj = h2hData?.teams ? Object.values(h2hData.teams).find((t: any) => t.id === homeTeamId) as any : null;
+                    const homeTeamName = homeTeamObj?.short_name_vi || homeTeamObj?.name || homeTeamId;
+                    
+                    const awayTeamObj = h2hData?.teams ? Object.values(h2hData.teams).find((t: any) => t.id === awayTeamId) as any : null;
+                    const awayTeamName = awayTeamObj?.short_name_vi || awayTeamObj?.name || awayTeamId;
+                    
+                    const compObj = h2hData?.competitions ? Object.values(h2hData.competitions).find((c: any) => c.id === compId) as any : null;
+                    const compName = compObj?.short_name_vi || compObj?.name || compId;
+                    
+                    return (
+                        <div key={matchId} className="flex flex-col gap-2 bg-gray-50/50 dark:bg-[#181d29]/40 border border-border-theme p-4 rounded-xl relative transition-colors duration-300">
+                            <div className="flex justify-between items-center text-[10px] md:text-xs text-gray-500 font-medium">
+                                <span className="flex items-center gap-1 font-bold text-amber-500/80">🏆 {compName}</span>
+                                <span className="bg-gray-100 dark:bg-gray-800/80 px-2 py-0.5 rounded text-gray-400 font-semibold">{formatMatchTime(timestamp)}</span>
+                            </div>
+                            
+                            <div className="flex items-center justify-between mt-2">
+                                <div className="w-2/5 flex items-center justify-end gap-2 text-right">
+                                    <span className="text-xs md:text-sm font-semibold truncate max-w-[100px] md:max-w-[120px] text-foreground">{homeTeamName}</span>
+                                    <img 
+                                        src={getTeamFlag(homeTeamObj?.name || homeTeamName, homeTeamId)} 
+                                        alt="flag" 
+                                        className="w-5 h-5 rounded-full object-cover border border-border-theme bg-gray-100 dark:bg-gray-800" 
+                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://img.thesports.com/football/team/default.png'; }} 
+                                    />
+                                </div>
+
+                                <div className="w-1/5 flex flex-col items-center justify-center shrink-0">
+                                    <span className="bg-blue-600 text-white text-xs md:text-sm font-bold px-3 py-1 rounded-full shadow-md">
+                                        VS
+                                    </span>
+                                </div>
+
+                                <div className="w-2/5 flex items-center justify-start gap-2 text-left">
+                                    <img 
+                                        src={getTeamFlag(awayTeamObj?.name || awayTeamName, awayTeamId)} 
+                                        alt="flag" 
+                                        className="w-5 h-5 rounded-full object-cover border border-border-theme bg-gray-100 dark:bg-gray-800" 
+                                        onError={(e) => { (e.target as HTMLImageElement).src = 'https://img.thesports.com/football/team/default.png'; }} 
+                                    />
+                                    <span className="text-xs md:text-sm font-semibold truncate max-w-[100px] md:max-w-[120px] text-foreground">{awayTeamName}</span>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
 
     if (isLoading) {
         return (
@@ -290,11 +593,6 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
                         );
                     })}
                 </div>
-            </div>
-
-            {/* 3. Tiếu Lâm TV Affiliate Text */}
-            <div className="text-center bg-amber-500/5 border border-amber-500/10 rounded-lg py-2 text-[11px] md:text-xs text-amber-500 dark:text-amber-400 font-medium leading-relaxed">
-                Ae nhớ lưu lại link <span className="font-bold underline text-foreground">bit.ly/tieulamtv</span> để truy cập website của <span className="font-bold text-amber-500">Tiếu Lâm TV</span>
             </div>
 
             {/* 4. Tab Content Area */}
@@ -927,30 +1225,240 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
                     </div>
                 )}
 
-                {/* --- TAB 5: BXH (PLACEHOLDER) --- */}
+                {/* --- TAB 5: BXH --- */}
                 {activeTab === 'bxh' && (
-                    <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl transition-colors duration-300">
-                        <span className="text-3xl block mb-2">📊</span>
-                        <p className="text-sm font-semibold mb-1">Bảng xếp hạng đang được cập nhật</p>
-                        <p className="text-xs text-gray-400">Dữ liệu BXH cho giải đấu {matchData.competition?.name} sẽ xuất hiện tại đây.</p>
+                    <div className="flex flex-col gap-6 max-h-[600px] overflow-y-auto pr-1">
+                        {isStandingLoading ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-2" />
+                                <p className="text-sm font-semibold">Đang tải bảng xếp hạng...</p>
+                            </div>
+                        ) : !standingData || !standingData.standing?.tables || standingData.standing.tables.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <span className="text-3xl block mb-2">📊</span>
+                                <p className="text-sm font-semibold mb-1">Bảng xếp hạng đang được cập nhật</p>
+                                <p className="text-xs text-gray-400">Dữ liệu BXH cho giải đấu {matchData.competition?.name || 'này'} sẽ xuất hiện tại đây.</p>
+                            </div>
+                        ) : (
+                            standingData.standing.tables.map((table: any) => (
+                                <div key={table.id} className="bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl p-4 flex flex-col gap-3 transition-colors duration-300">
+                                    <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2 flex items-center gap-2">
+                                        <span>🏆</span> {getGroupName(table)}
+                                    </h4>
+                                    
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse text-xs md:text-sm">
+                                            <thead>
+                                                <tr className="border-b border-border-theme text-foreground/70 font-semibold">
+                                                    <th className="py-2 px-1 text-center w-10">TT</th>
+                                                    <th className="py-2 px-2">Đội bóng</th>
+                                                    <th className="py-2 px-2 text-center w-12">Trận</th>
+                                                    <th className="py-2 px-2 text-center w-10">W</th>
+                                                    <th className="py-2 px-2 text-center w-10">D</th>
+                                                    <th className="py-2 px-2 text-center w-10">L</th>
+                                                    <th className="py-2 px-2 text-center w-12 font-bold">Điểm</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {table.rows?.map((row: any) => {
+                                                    const teamObj = standingData.teams?.find((t: any) => t.id === row.team_id);
+                                                    const teamName = teamObj?.short_name_vi || teamObj?.name || row.team_id;
+                                                    const teamLogo = teamObj?.logo || getTeamFlag(teamName, row.team_id);
+                                                    
+                                                    const rankNum = parseInt(row.position);
+                                                    const isTop = rankNum <= 4;
+                                                    const isRelegation = table.rows.length > 8 && rankNum >= table.rows.length - 2;
+
+                                                    return (
+                                                        <tr key={row.team_id} className="border-b border-border-theme/40 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors">
+                                                            <td className="py-2.5 px-1 text-center">
+                                                                <div className={`w-5 h-5 mx-auto flex items-center justify-center rounded-full text-[10px] font-bold text-white ${
+                                                                    isTop ? 'bg-[#28A745]' : isRelegation ? 'bg-[#DC3545]' : 'bg-gray-400 dark:bg-gray-600'
+                                                                }`}>
+                                                                    {row.position}
+                                                                </div>
+                                                            </td>
+                                                            <td className="py-2.5 px-2 font-semibold flex items-center gap-2">
+                                                                <img 
+                                                                    src={teamLogo} 
+                                                                    alt={teamName} 
+                                                                    className="w-5 h-5 object-contain" 
+                                                                    onError={(e) => { (e.target as HTMLImageElement).src = 'https://img.thesports.com/football/team/default.png'; }} 
+                                                                />
+                                                                <span className="text-foreground truncate max-w-[120px] md:max-w-[200px]">{teamName}</span>
+                                                            </td>
+                                                            <td className="py-2.5 px-2 text-center text-foreground/80">{row.total}</td>
+                                                            <td className="py-2.5 px-2 text-center text-foreground/80">{row.won}</td>
+                                                            <td className="py-2.5 px-2 text-center text-foreground/80">{row.draw}</td>
+                                                            <td className="py-2.5 px-2 text-center text-foreground/80">{row.loss}</td>
+                                                            <td className="py-2.5 px-2 text-center font-bold text-amber-500 text-sm">{row.points}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 )}
 
-                {/* --- TAB 6: ĐỐI ĐẦU (PLACEHOLDER) --- */}
+                {/* --- TAB 6: ĐỐI ĐẦU --- */}
                 {activeTab === 'h2h' && (
-                    <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl transition-colors duration-300">
-                        <span className="text-3xl block mb-2">⚔️</span>
-                        <p className="text-sm font-semibold mb-1">Lịch sử đối đầu</p>
-                        <p className="text-xs text-gray-400">Thống kê các trận đối đầu gần đây giữa {matchData.home_team?.name} và {matchData.away_team?.name} đang được xử lý.</p>
+                    <div className="flex flex-col gap-6">
+                        {/* H2H Sub-tabs */}
+                        <div className="flex items-center justify-center gap-2 border-b border-border-theme pb-4">
+                            <button
+                                onClick={() => setH2HSubTab('home')}
+                                className={`px-4 py-2 text-xs md:text-sm font-bold rounded-lg border transition-all duration-300 ${
+                                    h2hSubTab === 'home'
+                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                        : 'bg-transparent border-border-theme hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80'
+                                }`}
+                            >
+                                {matchData.home_team?.name?.toUpperCase()}
+                            </button>
+                            <button
+                                onClick={() => setH2HSubTab('all')}
+                                className={`px-4 py-2 text-xs md:text-sm font-bold rounded-lg border transition-all duration-300 ${
+                                    h2hSubTab === 'all'
+                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                        : 'bg-transparent border-border-theme hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80'
+                                }`}
+                            >
+                                TOÀN BỘ
+                            </button>
+                            <button
+                                onClick={() => setH2HSubTab('away')}
+                                className={`px-4 py-2 text-xs md:text-sm font-bold rounded-lg border transition-all duration-300 ${
+                                    h2hSubTab === 'away'
+                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                        : 'bg-transparent border-border-theme hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80'
+                                }`}
+                            >
+                                {matchData.away_team?.name?.toUpperCase()}
+                            </button>
+                        </div>
+
+                        {isH2HLoading ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-2" />
+                                <p className="text-sm font-semibold">Đang tải lịch sử đối đầu...</p>
+                            </div>
+                        ) : !h2hData ? (
+                            <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <span className="text-3xl block mb-2">⚔️</span>
+                                <p className="text-sm font-semibold mb-1">Không có dữ liệu đối đầu</p>
+                                <p className="text-xs text-gray-400">Không tìm thấy thông tin lịch sử đấu.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-6 max-h-[600px] overflow-y-auto pr-1">
+                                {/* Option 1: View Home only */}
+                                {h2hSubTab === 'home' && (
+                                    <div className="flex flex-col gap-3">
+                                        <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                            CÁC TRẬN GẦN NHẤT: {matchData.home_team?.name}
+                                        </h4>
+                                        {renderH2HMatchList(h2hData.home, matchData.home_team?.id)}
+                                    </div>
+                                )}
+
+                                {/* Option 2: View Away only */}
+                                {h2hSubTab === 'away' && (
+                                    <div className="flex flex-col gap-3">
+                                        <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                            CÁC TRẬN GẦN NHẤT: {matchData.away_team?.name}
+                                        </h4>
+                                        {renderH2HMatchList(h2hData.away, matchData.away_team?.id)}
+                                    </div>
+                                )}
+
+                                {/* Option 3: View All */}
+                                {h2hSubTab === 'all' && (
+                                    <>
+                                        <div className="flex flex-col gap-3">
+                                            <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                                CÁC TRẬN ĐỐI ĐẦU
+                                            </h4>
+                                            {(!h2hData.vs || h2hData.vs.length === 0) ? (
+                                                <div className="text-center py-6 text-gray-500 text-xs italic bg-gray-50/20 dark:bg-white/[0.01] border border-border-theme rounded-lg">
+                                                    Không có dữ liệu đối đầu trực tiếp gần đây.
+                                                </div>
+                                            ) : (
+                                                renderH2HMatchList(h2hData.vs, matchData.home_team?.id)
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col gap-3">
+                                            <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                                CÁC TRẬN GẦN NHẤT: {matchData.home_team?.name}
+                                            </h4>
+                                            {renderH2HMatchList(h2hData.home, matchData.home_team?.id)}
+                                        </div>
+
+                                        <div className="flex flex-col gap-3">
+                                            <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                                CÁC TRẬN GẦN NHẤT: {matchData.away_team?.name}
+                                            </h4>
+                                            {renderH2HMatchList(h2hData.away, matchData.away_team?.id)}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* --- TAB 7: TRẬN SẮP TỚI (PLACEHOLDER) --- */}
+                {/* --- TAB 7: TRẬN SẮP TỚI --- */}
                 {activeTab === 'upcoming' && (
-                    <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl transition-colors duration-300">
-                        <span className="text-3xl block mb-2">📅</span>
-                        <p className="text-sm font-semibold mb-1">Trận đấu tiếp theo</p>
-                        <p className="text-xs text-gray-400">Danh sách các trận đấu sắp tới của hai đội bóng sẽ sớm được cập nhật.</p>
+                    <div className="flex flex-col gap-6">
+                        {/* Upcoming Sub-tabs */}
+                        <div className="flex items-center justify-center gap-2 border-b border-border-theme pb-4">
+                            <button
+                                onClick={() => setUpcomingSubTab('home')}
+                                className={`px-4 py-2 text-xs md:text-sm font-bold rounded-lg border transition-all duration-300 ${
+                                    upcomingSubTab === 'home'
+                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                        : 'bg-transparent border-border-theme hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80'
+                                }`}
+                            >
+                                {matchData.home_team?.name?.toUpperCase()}
+                            </button>
+                            <button
+                                onClick={() => setUpcomingSubTab('away')}
+                                className={`px-4 py-2 text-xs md:text-sm font-bold rounded-lg border transition-all duration-300 ${
+                                    upcomingSubTab === 'away'
+                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                        : 'bg-transparent border-border-theme hover:bg-black/5 dark:hover:bg-white/5 text-foreground/80'
+                                }`}
+                            >
+                                {matchData.away_team?.name?.toUpperCase()}
+                            </button>
+                        </div>
+
+                        {isH2HLoading ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <Loader2 className="w-8 h-8 animate-spin text-amber-500 mb-2" />
+                                <p className="text-sm font-semibold">Đang tải lịch thi đấu sắp tới...</p>
+                            </div>
+                        ) : !h2hData || !h2hData.future ? (
+                            <div className="text-center py-12 text-gray-500 bg-gray-50 dark:bg-[#181d29]/40 border border-border-theme rounded-xl">
+                                <span className="text-3xl block mb-2">📅</span>
+                                <p className="text-sm font-semibold mb-1">Không có thông tin lịch đấu sắp tới</p>
+                                <p className="text-xs text-gray-400">Lịch thi đấu sắp tới chưa được cập nhật.</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto pr-1">
+                                <h4 className="text-sm font-bold text-amber-500 uppercase tracking-wide border-b border-border-theme pb-2">
+                                    LỊCH THI ĐẤU TIẾP THEO
+                                </h4>
+                                {upcomingSubTab === 'home' 
+                                    ? renderUpcomingMatchList(h2hData.future.home || [])
+                                    : renderUpcomingMatchList(h2hData.future.away || [])
+                                }
+                            </div>
+                        )}
                     </div>
                 )}
 
