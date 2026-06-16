@@ -1,18 +1,18 @@
-const { getStandings } = require('./scraper_bongda24h');
+const cheerio = require('cheerio');
 
 async function main() {
-    console.log('Fetching standings...');
-    const result = await getStandings();
-    console.log('\n--- Leagues (' + result.leagues.length + ') ---');
-    result.leagues.forEach(l => {
-        console.log(`- ${l.leagueName} (Category: ${l.category})`);
+    console.log('Searching for borders...');
+    const res = await fetch('https://bongda24h.vn/vck-world-cup/vong-loai-truc-tiep.html', {
+        headers: { 'User-Agent': 'Mozilla/5.0' }
     });
-    console.log('\n--- Navigation (' + result.navigation.length + ') ---');
-    result.navigation.forEach(n => {
-        console.log(`- Category: ${n.name}`);
-        n.leagues.forEach(l => {
-            console.log(`  * ${l.name} (${l.fullUrl})`);
-        });
+    const html = await res.text();
+    const $ = cheerio.load(html);
+    const table = $('table.table-wcp').first();
+    table.find('td').each((i, td) => {
+        const style = $(td).attr('style') || '';
+        if (style.includes('border')) {
+            console.log(`Cell index ${i} has style: "${style}"`);
+        }
     });
 }
 

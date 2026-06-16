@@ -499,9 +499,10 @@ async function fetchDetailedStandings(url) {
                 if (formImgs.length > 0) {
                     formImgs.each((_, imgNode) => {
                         const alt = $(imgNode).attr('alt') || '';
-                        if (alt.includes('Thắng') || alt.includes('Thắng')) forms.push('W');
-                        else if (alt.includes('Hòa') || alt.includes('Hòa')) forms.push('D');
-                        else if (alt.includes('Thua')) forms.push('L');
+                        const src = $(imgNode).attr('src') || '';
+                        if (alt.includes('Thắng') || alt.includes('Thắng') || src.includes('BXH_1')) forms.push('W');
+                        else if (alt.includes('Hòa') || alt.includes('Hòa') || src.includes('BXH_3')) forms.push('D');
+                        else if (alt.includes('Thua') || alt.includes('Bại') || alt.includes('Bại') || src.includes('BXH_2')) forms.push('L');
                     });
                 } else {
                     formCol.find('span').each((_, span) => {
