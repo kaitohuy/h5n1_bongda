@@ -360,53 +360,175 @@ async function fetchDetailedStandings(url) {
         if (!res.ok) throw new Error(`Detailed fetch failed: ${res.status}`);
         const html = await res.text();
         const $ = cheerio.load(html);
-        const table = $('table').first();
-        if (!table.length) return null;
-        
-        // Similar extraction logic for detailed view
-        const headers = [];
-        table.find('thead th, tr').first().find('th, td').each((j, th) => {
-            headers.push($(th).text().trim().toLowerCase());
-        });
-        const colMap = {
-            rank: headers.findIndex(h => h === '#' || h === 'tt'),
-            team: headers.findIndex(h => h === 'đội'),
-            played: headers.findIndex(h => h === 'st' || h === 'trận'),
-            won: headers.findIndex(h => h === 't' || h === 'thua' || h === 'w' || h === 'thắng'),
-            drawn: headers.findIndex(h => h === 'h' || h === 'hòa' || h === 'd'),
-            lost: headers.findIndex(h => h === 'b' || h === 'thua' || h === 'l' || h === 'bại'),
-            gd: headers.findIndex(h => h === 'hs' || h === '+/-'),
-            points: headers.findIndex(h => h === 'đ' || h === 'điểm' || h === 'pts')
-        };
 
-        let teams = [];
-        table.find('tbody tr, tr').each((j, tr) => {
-            if ($(tr).find('th').length > 0) return; 
-            const cols = $(tr).find('td');
-            if (cols.length < 5) return;
-            let rank = $(cols[colMap.rank !== -1 ? colMap.rank : 0]).text().trim();
-            const teamCol = $(cols[colMap.team !== -1 ? colMap.team : 1]);
-            const teamName = teamCol.find('a').attr('title') || teamCol.text().trim();
-            let logo = teamCol.find('img').attr('src') || '';
-            if (logo && logo.startsWith('/')) logo = 'https://bongda24h.vn' + logo;
-            const played = $(cols[colMap.played !== -1 ? colMap.played : 2]).text().trim();
-            const won = $(cols[colMap.won !== -1 ? colMap.won : 3]).text().trim();
-            const drawn = $(cols[colMap.drawn !== -1 ? colMap.drawn : 4]).text().trim();
-            const lost = $(cols[colMap.lost !== -1 ? colMap.lost : 5]).text().trim();
-            let gdIdx = colMap.gd !== -1 ? colMap.gd : (cols.length === 9 ? 6 : 8);
-            let ptsIdx = colMap.points !== -1 ? colMap.points : (cols.length === 9 ? 7 : 9);
-            const gd = $(cols[gdIdx]).text().trim();
-            const points = $(cols[ptsIdx]).text().trim();
-            let forms = [];
-            cols.last().find('span').each((_, span) => {
-                const bg = $(span).attr('class') || '';
-                if (bg.includes('bggreen')) forms.push('W');
-                else if (bg.includes('bgred')) forms.push('L');
-                else if (bg.includes('bgyelow')) forms.push('D');
+        // 1. Check if it's the knockout bracket page
+        const knockoutTable = $('table.table-wcp').first();
+        if (knockoutTable.length > 0) {
+            let rawHtml = $.html(knockoutTable);
+            // Convert relative links to absolute
+            const cleanedHtml = rawHtml
+                .replace(/href="\//g, 'href="https://bongda24h.vn/')
+                .replace(/src="\//g, 'src="https://bongda24h.vn/');
+            return { isKnockout: true, html: cleanedHtml };
+        }
+
+        const parsedTables = [];
+        $('table').each((i, tableNode) => {
+            const table = $(tableNode);
+            
+            // Skip non-standings tables
+            if (table.hasClass('table-ltd-football') || table.hasClass('table-tktt') || table.hasClass('table-dtnb') || table.hasClass('table-wcp')) {
+                return;
+            }
+
+            // Determine title and header rows
+            let title = '';
+            let headerRow = null;
+            let isCombinedHeader = false;
+
+            const firstRow = table.find('tr').first();
+            const firstRowThs = firstRow.find('th, td');
+            const firstCell = firstRowThs.first();
+            
+            if (firstCell.attr('colspan') === '2' || firstCell.attr('colspan') === 2) {
+                // Combined format (e.g. World Cup groups)
+                title = firstCell.text().trim();
+                headerRow = firstRow;
+                isCombinedHeader = true;
+            } else {
+                // Separate format (e.g. regional qualifiers, standard tables)
+                title = firstCell.text().trim();
+                headerRow = table.find('tr').eq(1);
+            }
+
+            // Fallback header/title detection
+            if (!title) {
+                let current = table;
+                while(current.length > 0) {
+                    const prevs = current.prevAll('h2, h3, .title-bxh, .tieude-bxh, .title-box, .title-cate');
+                    if (prevs.length > 0) {
+                        title = prevs.first().text().trim();
+                        break;
+                    }
+                    current = current.parent();
+                    if (current.is('body')) break;
+                }
+            }
+            if (!title) title = `Bảng ${i + 1}`;
+            title = title.replace(/\s+/g, ' ').trim();
+
+            // Set up column map
+            let colMap = {};
+            if (isCombinedHeader) {
+                colMap = { rank: 0, team: 1, played: 2, won: 3, drawn: 4, lost: 5, gd: 7, points: 8, form: 9 };
+            } else {
+                const headers = [];
+                headerRow.find('th, td').each((_, cell) => {
+                    headers.push($(cell).text().trim().toLowerCase());
+                });
+
+                colMap = {
+                    rank: headers.findIndex(h => h === '#' || h === 'tt'),
+                    team: headers.findIndex(h => h === 'đội' || h.includes('đội')),
+                    played: headers.findIndex(h => h === 'st' || h === 'trận'),
+                    won: headers.findIndex(h => h === 't' || h === 'w' || h === 'thắng'),
+                    drawn: headers.findIndex(h => h === 'h' || h === 'd' || h === 'hòa'),
+                    lost: headers.findIndex(h => h === 'b' || h === 'l' || h === 'bại' || h === 'thua'),
+                    gd: headers.findIndex(h => h === 'hs' || h === '+/-'),
+                    points: headers.findIndex(h => h === 'đ' || h === 'điểm' || h === 'pts'),
+                    form: headers.findIndex(h => h.includes('gần nhất') || h.includes('form'))
+                };
+
+                if (colMap.rank === -1) colMap.rank = 0;
+                if (colMap.team === -1) colMap.team = 1;
+                if (colMap.played === -1) colMap.played = 2;
+                if (colMap.won === -1) colMap.won = 3;
+                if (colMap.drawn === -1) colMap.drawn = 4;
+                if (colMap.lost === -1) colMap.lost = 5;
+                if (colMap.gd === -1) colMap.gd = 6;
+                if (colMap.points === -1) colMap.points = 7;
+                if (colMap.form === -1) colMap.form = 8;
+            }
+
+            let teams = [];
+            table.find('tbody tr, tr').each((rowIdx, tr) => {
+                // Skip header rows
+                if ($(tr).find('th').length > 0) return;
+                
+                const cols = $(tr).find('td');
+                if (cols.length < 5) return;
+                
+                const firstCellText = cols.first().text().trim();
+                if (firstCellText === title || firstCellText.toLowerCase() === 'tt' || firstCellText.toLowerCase() === '#') {
+                    return;
+                }
+
+                const rank = $(cols[colMap.rank]).text().trim();
+                const teamCol = $(cols[colMap.team]);
+                const teamName = teamCol.find('a').last().text().trim() || teamCol.text().trim();
+                
+                let logo = '';
+                const img = teamCol.find('img');
+                const source = teamCol.find('source').first();
+                let possibleSources = [
+                    source.attr('srcset'),
+                    source.attr('data-srcset'),
+                    img.attr('data-src'),
+                    img.attr('data-original'),
+                    img.attr('src')
+                ];
+                for (let src of possibleSources) {
+                    if (src && src.startsWith('http') && !src.includes('data:image')) {
+                        logo = src.split(',').pop().trim().split(' ')[0];
+                        break;
+                    }
+                }
+                if (logo && logo.startsWith('/')) logo = 'https://bongda24h.vn' + logo;
+
+                const played = $(cols[colMap.played]).text().trim();
+                const won = $(cols[colMap.won]).text().trim();
+                const drawn = $(cols[colMap.drawn]).text().trim();
+                const lost = $(cols[colMap.lost]).text().trim();
+                const gd = $(cols[colMap.gd]).text().trim();
+                const points = $(cols[colMap.points]).text().trim();
+
+                const forms = [];
+                const formCol = $(cols[colMap.form]);
+                
+                const formImgs = formCol.find('img');
+                if (formImgs.length > 0) {
+                    formImgs.each((_, imgNode) => {
+                        const alt = $(imgNode).attr('alt') || '';
+                        if (alt.includes('Thắng') || alt.includes('Thắng')) forms.push('W');
+                        else if (alt.includes('Hòa') || alt.includes('Hòa')) forms.push('D');
+                        else if (alt.includes('Thua')) forms.push('L');
+                    });
+                } else {
+                    formCol.find('span').each((_, span) => {
+                        const bg = $(span).attr('class') || '';
+                        if (bg.includes('bggreen')) forms.push('W');
+                        else if (bg.includes('bgred')) forms.push('L');
+                        else if (bg.includes('bgyelow') || bg.includes('bgorange')) forms.push('D');
+                    });
+                }
+
+                if (teamName && teamName !== 'Đội') {
+                    teams.push({ rank, teamName, logo, played, won, drawn, lost, gd, points, form: forms });
+                }
             });
-            if (teamName) teams.push({ rank, teamName, logo, played, won, drawn, lost, gd, points, form: forms });
+
+            if (teams.length > 0) {
+                parsedTables.push({ title, teams });
+            }
         });
-        return teams;
+
+        if (parsedTables.length > 1) {
+            return { isMultiTable: true, tables: parsedTables };
+        } else if (parsedTables.length === 1) {
+            return parsedTables[0].teams; // Backward compatibility
+        } else {
+            return [];
+        }
     } catch (e) {
         console.error('[bongda24h] fetchDetailedStandings error:', e.message);
         return null;

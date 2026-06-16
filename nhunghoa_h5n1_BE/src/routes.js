@@ -151,11 +151,20 @@ router.get('/api/standings/detail', async (req, res) => {
     console.log(`[standings/detail] Requesting detailed standings for: ${url}`);
     const start = Date.now();
     try {
-        const teams = await fetchDetailedStandings(url);
-        if (!teams) throw new Error('Could not fetch detailed standings');
+        const result = await fetchDetailedStandings(url);
+        if (!result) throw new Error('Could not fetch detailed standings');
         const elapsed = Date.now() - start;
-        console.log(`[standings/detail] ✓ Returning ${teams.length} teams in ${elapsed}ms`);
-        return res.json({ success: true, teams, elapsedMs: elapsed });
+        
+        if (result.isKnockout) {
+            console.log(`[standings/detail] ✓ Returning knockout bracket HTML in ${elapsed}ms`);
+            return res.json({ success: true, isKnockout: true, html: result.html, elapsedMs: elapsed });
+        } else if (result.isMultiTable) {
+            console.log(`[standings/detail] ✓ Returning ${result.tables.length} tables in ${elapsed}ms`);
+            return res.json({ success: true, isMultiTable: true, tables: result.tables, elapsedMs: elapsed });
+        } else {
+            console.log(`[standings/detail] ✓ Returning ${result.length} teams in ${elapsed}ms`);
+            return res.json({ success: true, teams: result, elapsedMs: elapsed });
+        }
     } catch (err) {
         const elapsed = Date.now() - start;
         console.error(`[standings/detail] ✗ Error after ${elapsed}ms: ${err.message}`);
@@ -163,15 +172,22 @@ router.get('/api/standings/detail', async (req, res) => {
     }
 });
 
-// GET /api/match/:matchId/score-data/:type
-router.get('/api/match/:matchId/score-data/:type', async (req, res) => {
-    const { matchId, type } = req.params;
-    const validTypes = ['match', 'statistics', 'incidents', 'lineups'];
+// GET /api/match/:id/score-data/:type
+router.get('/api/match/:id/score-data/:type', async (req, res) => {
+    const { id, type } = req.params;
+    const validTypes = ['match', 'statistics', 'incidents', 'lineups', 'h2h', 'standing'];
     if (!validTypes.includes(type)) {
         return res.status(400).json({ success: false, error: 'Invalid data type' });
     }
-    const urlType = type === 'match' ? 'match' : type;
-    const targetUrl = `https://score-api.tl2692026.com/match/${matchId}/${urlType}.json`;
+    
+    let targetUrl;
+    if (type === 'standing') {
+        targetUrl = `https://score-api.tl2692026.com/standing/${id}/standing.json`;
+    } else {
+        const urlType = type === 'match' ? 'match' : type;
+        targetUrl = `https://score-api.tl2692026.com/match/${id}/${urlType}.json`;
+    }
+
     try {
         const response = await fetch(targetUrl, {
             headers: {
