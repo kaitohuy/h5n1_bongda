@@ -163,6 +163,32 @@ router.get('/api/standings/detail', async (req, res) => {
     }
 });
 
+// GET /api/match/:matchId/score-data/:type
+router.get('/api/match/:matchId/score-data/:type', async (req, res) => {
+    const { matchId, type } = req.params;
+    const validTypes = ['match', 'statistics', 'incidents', 'lineups'];
+    if (!validTypes.includes(type)) {
+        return res.status(400).json({ success: false, error: 'Invalid data type' });
+    }
+    const urlType = type === 'match' ? 'match' : type;
+    const targetUrl = `https://score-api.tl2692026.com/match/${matchId}/${urlType}.json`;
+    try {
+        const response = await fetch(targetUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+            },
+            signal: AbortSignal.timeout(10000)
+        });
+        if (!response.ok) {
+            return res.status(response.status).json({ success: false, error: `Upstream score API returned status ${response.status}` });
+        }
+        const data = await response.json();
+        return res.json({ success: true, data: data });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // ── M3U8 stream extractor ─────────────────────────────────────────────────────
 // GET /api/extract?url={slug}&source={source}&server={serverLabel}
 router.get('/api/extract', async (req, res) => {
