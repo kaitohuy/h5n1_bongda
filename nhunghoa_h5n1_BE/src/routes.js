@@ -172,6 +172,57 @@ router.get('/api/standings/detail', async (req, res) => {
     }
 });
 
+let cachedScoreApiDomain = null;
+let cachedScoreApiDomainTime = 0;
+const SCORE_API_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+async function getScoreApiDomain() {
+    const now = Date.now();
+    if (cachedScoreApiDomain && (now - cachedScoreApiDomainTime) < SCORE_API_CACHE_TTL) {
+        return cachedScoreApiDomain;
+    }
+    
+    const mirrors = [
+        'https://sv1.tieulamlive.net',
+        'https://sv1.tieulamlive.com',
+        'https://sv1.tieulam1.live'
+    ];
+    
+    for (const mirror of mirrors) {
+        try {
+            const res = await fetch(`${mirror}/trang-chu`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                signal: AbortSignal.timeout(5000)
+            });
+            if (res.ok) {
+                const html = await res.text();
+                const jsMatch = html.match(/src="(\/assets\/index-[a-zA-Z0-9_-]+\.js)"/);
+                if (jsMatch && jsMatch[1]) {
+                    const jsUrl = `${mirror}${jsMatch[1]}`;
+                    const jsRes = await fetch(jsUrl, { signal: AbortSignal.timeout(5000) });
+                    if (jsRes.ok) {
+                        const jsText = await jsRes.text();
+                        const scoreMatch = jsText.match(/score-client\.(tl[0-9]+)\.com/);
+                        if (scoreMatch && scoreMatch[1]) {
+                            const domainCode = scoreMatch[1];
+                            const apiDomain = `score-api.${domainCode}.com`;
+                            console.log(`[score-api] Dynamically resolved Score API domain: ${apiDomain}`);
+                            cachedScoreApiDomain = apiDomain;
+                            cachedScoreApiDomainTime = now;
+                            return apiDomain;
+                        }
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn(`[score-api] Failed to resolve from mirror ${mirror}: ${err.message}`);
+        }
+    }
+    
+    if (cachedScoreApiDomain) return cachedScoreApiDomain;
+    return 'score-api.tl17092026.com';
+}
+
 // GET /api/match/:id/score-data/:type
 router.get('/api/match/:id/score-data/:type', async (req, res) => {
     const { id, type } = req.params;
@@ -180,15 +231,16 @@ router.get('/api/match/:id/score-data/:type', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Invalid data type' });
     }
     
-    let targetUrl;
-    if (type === 'standing') {
-        targetUrl = `https://score-api.tl2692026.com/standing/${id}/standing.json`;
-    } else {
-        const urlType = type === 'match' ? 'match' : type;
-        targetUrl = `https://score-api.tl2692026.com/match/${id}/${urlType}.json`;
-    }
-
     try {
+        const scoreDomain = await getScoreApiDomain();
+        let targetUrl;
+        if (type === 'standing') {
+            targetUrl = `https://${scoreDomain}/standing/${id}/standing.json`;
+        } else {
+            const urlType = type === 'match' ? 'match' : type;
+            targetUrl = `https://${scoreDomain}/match/${id}/${urlType}.json`;
+        }
+
         const response = await fetch(targetUrl, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
@@ -307,7 +359,7 @@ router.get('/api/proxy', (req, res) => {
         'fastestcdn-global.com', 'gv05',
         'cdnfaster', 'cdnokvip',
         'vsc100.com', 'secufun.xyz',
-        'asynccdn.xyz', '100ycdn.com',
+        'asynccdn', '100ycdn.com',
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
     if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);
@@ -323,7 +375,7 @@ router.get('/api/proxy', (req, res) => {
         || parsedUrl.hostname.includes('livecdnem.com')) {
         referer = 'https://xlz.livecdnem.com/';
         origin = 'https://xlz.livecdnem.com';
-    } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com') || parsedUrl.hostname.includes('asynccdn.xyz') || parsedUrl.hostname.includes('100ycdn.com')) {
+    } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com') || parsedUrl.hostname.includes('asynccdn') || parsedUrl.hostname.includes('100ycdn.com')) {
         referer = 'https://sv1.tieulam1.live/';
         origin = 'https://sv1.tieulam1.live';
     }
