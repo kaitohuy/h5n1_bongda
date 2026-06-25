@@ -12,40 +12,7 @@ let matchCache = null;
 let matchCacheTime = 0;
 const MATCH_CACHE_TTL = 3 * 60 * 1000; // 3 phút
 
-let cachedDomain = null;
-let cachedDomainTime = 0;
-const DOMAIN_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-async function getApiDomain() {
-    const now = Date.now();
-    if (cachedDomain && (now - cachedDomainTime) < DOMAIN_CACHE_TTL) {
-        return cachedDomain;
-    }
-    try {
-        console.log('[tieulamtv] Dynamically resolving API domain from tieulam.tv...');
-        const res = await fetch('https://tieulam.tv', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            },
-            signal: AbortSignal.timeout(6000)
-        });
-        if (res.ok) {
-            const html = await res.text();
-            const match = html.match(/API_URL\s*:\s*"https?:\/\/([^"]+)"/);
-            if (match && match[1]) {
-                const domain = match[1].trim();
-                console.log(`[tieulamtv] Resolved API domain: ${domain}`);
-                cachedDomain = domain;
-                cachedDomainTime = now;
-                return domain;
-            }
-        }
-    } catch (err) {
-        console.warn(`[tieulamtv] Dynamic domain resolution failed: ${err.message}. Using fallback.`);
-    }
-    if (cachedDomain) return cachedDomain;
-    return 'api.tlap17062026.com';
-}
+const { getApiDomain } = require('./tieulam_config');
 
 // ── Match Listing ─────────────────────────────────────────────────────────────
 async function fetchMatches() {

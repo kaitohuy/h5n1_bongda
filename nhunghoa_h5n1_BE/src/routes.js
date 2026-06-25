@@ -172,56 +172,7 @@ router.get('/api/standings/detail', async (req, res) => {
     }
 });
 
-let cachedScoreApiDomain = null;
-let cachedScoreApiDomainTime = 0;
-const SCORE_API_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
-
-async function getScoreApiDomain() {
-    const now = Date.now();
-    if (cachedScoreApiDomain && (now - cachedScoreApiDomainTime) < SCORE_API_CACHE_TTL) {
-        return cachedScoreApiDomain;
-    }
-    
-    const mirrors = [
-        'https://sv1.tieulamlive.net',
-        'https://sv1.tieulamlive.com',
-        'https://sv1.tieulam1.live'
-    ];
-    
-    for (const mirror of mirrors) {
-        try {
-            const res = await fetch(`${mirror}/trang-chu`, {
-                headers: { 'User-Agent': 'Mozilla/5.0' },
-                signal: AbortSignal.timeout(5000)
-            });
-            if (res.ok) {
-                const html = await res.text();
-                const jsMatch = html.match(/src="(\/assets\/index-[a-zA-Z0-9_-]+\.js)"/);
-                if (jsMatch && jsMatch[1]) {
-                    const jsUrl = `${mirror}${jsMatch[1]}`;
-                    const jsRes = await fetch(jsUrl, { signal: AbortSignal.timeout(5000) });
-                    if (jsRes.ok) {
-                        const jsText = await jsRes.text();
-                        const scoreMatch = jsText.match(/score-client\.(tl[0-9]+)\.com/);
-                        if (scoreMatch && scoreMatch[1]) {
-                            const domainCode = scoreMatch[1];
-                            const apiDomain = `score-api.${domainCode}.com`;
-                            console.log(`[score-api] Dynamically resolved Score API domain: ${apiDomain}`);
-                            cachedScoreApiDomain = apiDomain;
-                            cachedScoreApiDomainTime = now;
-                            return apiDomain;
-                        }
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn(`[score-api] Failed to resolve from mirror ${mirror}: ${err.message}`);
-        }
-    }
-    
-    if (cachedScoreApiDomain) return cachedScoreApiDomain;
-    return 'score-api.tl17092026.com';
-}
+const { getScoreApiDomain } = require('./tieulam_config');
 
 // GET /api/match/:id/score-data/:type
 router.get('/api/match/:id/score-data/:type', async (req, res) => {

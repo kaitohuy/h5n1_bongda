@@ -52,14 +52,19 @@ export default {
         let origin;
         try { origin = new URL(referer).origin; } catch { origin = referer; }
 
-        // BẮT BUỘC: Nếu là domain của GavangTV CDN, phải ép Origin là web của họ để tránh 403
-        if (parsedTarget.hostname.includes('fastestcdn') || 
-            parsedTarget.hostname.includes('100ycdn') ||
-            parsedTarget.hostname.includes('gv05.live') ||
-            parsedTarget.hostname.includes('gvtv') ||
-            parsedTarget.hostname.includes('static.fastestcdn-global.com')) {
-            origin = 'https://xem1.gv05.live';
-            referer = 'https://xem1.gv05.live/';
+        // BẮT BUỘC: Ép Origin và Referer cho các CDN cụ thể để tránh lỗi 403 Forbidden
+        if (parsedTarget.hostname.includes('cdnfaster') || 
+            parsedTarget.hostname.includes('cdnokvip')) {
+            origin = 'https://timbageek.com';
+            referer = 'https://timbageek.com/';
+        } else if (
+            parsedTarget.hostname.includes('secufun.xyz') || 
+            parsedTarget.hostname.includes('vsc100.com') ||
+            parsedTarget.hostname.includes('asynccdn') ||
+            parsedTarget.hostname.includes('100ycdn.com')
+        ) {
+            origin = 'https://sv1.tieulam1.live';
+            referer = 'https://sv1.tieulam1.live/';
         }
 
         // Xác định loại file để chọn cache TTL
