@@ -63,8 +63,8 @@ export default {
             parsedTarget.hostname.includes('asynccdn') ||
             parsedTarget.hostname.includes('100ycdn.com')
         ) {
-            origin = 'https://sv1.tieulam1.live';
-            referer = 'https://sv1.tieulam1.live/';
+            origin = 'https://sv2.tieulam.info';
+            referer = 'https://sv2.tieulam.info/';
         }
 
         // Xác định loại file để chọn cache TTL

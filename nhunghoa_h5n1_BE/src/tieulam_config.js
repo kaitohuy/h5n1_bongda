@@ -12,7 +12,6 @@ async function resolveDomains() {
         'https://sv2.tieulam.info',
         'https://sv1.tieulamlive.net',
         'https://sv1.tieulamlive.com',
-        'https://sv1.tieulam1.live',
         'https://tieulam.tv'
     ];
     

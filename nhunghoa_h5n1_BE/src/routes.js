@@ -327,8 +327,8 @@ router.get('/api/proxy', (req, res) => {
         referer = 'https://xlz.livecdnem.com/';
         origin = 'https://xlz.livecdnem.com';
     } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com') || parsedUrl.hostname.includes('asynccdn') || parsedUrl.hostname.includes('100ycdn.com')) {
-        referer = 'https://sv1.tieulam1.live/';
-        origin = 'https://sv1.tieulam1.live';
+        referer = 'https://sv2.tieulam.info/';
+        origin = 'https://sv2.tieulam.info';
     }
 
     const options = {
