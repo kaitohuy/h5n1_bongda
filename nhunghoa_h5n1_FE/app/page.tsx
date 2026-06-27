@@ -198,18 +198,19 @@ export default function Home() {
   // ── Derived Data ───────────────────────────────────────────────────────────
   // Spotlight Match - ưu tiên: 1) hot+live, 2) hot bắt kỳ, 3) live bất kỳ, 4) trận đầu tiên
   const spotlightMatch = useMemo(() => {
+    const activeMatches = matches.filter(m => m.status !== 'Đã kết thúc');
     return (
-      matches.find(m => m.isSuperHot) ||                                          // ưu tiên cao nhất: trận Siêu Hot
-      matches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
-      matches.find(m => m.isHot || m.section === 'hot') ||
-      matches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
-      matches[0] || null
+      activeMatches.find(m => m.isSuperHot) ||                                    // ưu tiên cao nhất: trận Siêu Hot
+      activeMatches.find(m => (m.isHot || m.section === 'hot') && (m.status === 'Trực tiếp' || m.section === 'live')) ||
+      activeMatches.find(m => m.isHot || m.section === 'hot') ||
+      activeMatches.find(m => m.status === 'Trực tiếp' || m.section === 'live') ||
+      activeMatches[0] || null
     );
   }, [matches]);
 
-  // Hot Matches
+  // Hot Matches (Trận đấu tâm điểm)
   const hotMatches = useMemo(() => {
-    return matches.filter(m => m.isHot || m.section === 'hot' || m.status === 'Trực tiếp' || m.section === 'live');
+    return matches.filter(m => m.isSuperHot || m.isHot || m.section === 'hot');
   }, [matches]);
 
   // Live Matches

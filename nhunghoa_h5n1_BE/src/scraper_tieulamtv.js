@@ -93,6 +93,7 @@ async function fetchMatches() {
                     leagueLogo: '',
                     viewNumber: m.is_top ? 50000 : 0,
                     isHot: !!(m.is_hot || m.is_top),
+                    isSuperHot: !!m.is_hot,
                     servers: []
                 };
             }
@@ -110,6 +111,9 @@ async function fetchMatches() {
             }
             if (m.is_hot || m.is_top) {
                 groups[key].isHot = true;
+            }
+            if (m.is_hot) {
+                groups[key].isSuperHot = true;
             }
 
             // Thêm server phát
