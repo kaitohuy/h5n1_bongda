@@ -26,26 +26,34 @@ async function fetchMatches() {
 
     try {
         const domain = await getApiDomain();
-        const res = await fetch(`https://${domain}/matches/graph`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            },
-            body: JSON.stringify({
-                fields: [],
-                queries: [],
-                limit: 300,
-                page: 1,
-                order_asc: "start_date"
-            }),
-            signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
-        });
+        const pageNumbers = [1, 2, 3, 4, 5, 6, 7, 8];
+        const fetchPromises = pageNumbers.map(page =>
+            fetch(`https://${domain}/matches/graph`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                },
+                body: JSON.stringify({
+                    fields: [],
+                    queries: [],
+                    limit: 100,
+                    page: page,
+                    order_asc: "start_date"
+                }),
+                signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+            }).then(async res => {
+                if (!res.ok) return [];
+                const json = await res.json();
+                return json?.data || [];
+            }).catch(err => {
+                console.warn(`[tieulamtv] Failed to fetch page ${page}: ${err.message}`);
+                return [];
+            })
+        );
 
-        if (!res.ok) throw new Error(`Match listing failed: ${res.status}`);
-
-        const json = await res.json();
-        const rawMatches = json?.data || [];
+        const results = await Promise.all(fetchPromises);
+        const rawMatches = results.flat();
 
         // Gom nhóm các trận đấu trùng tên, trùng giờ (để gom các BLV/server khác nhau)
         const groups = {};
