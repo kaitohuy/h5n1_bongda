@@ -26,14 +26,14 @@ export default function Home() {
 
   const [showAllHot, setShowAllHot] = useState(false);
   const [showAllLive, setShowAllLive] = useState(false);
+  // Nguồn phát mặc định
+  const [source, setSource] = useState<'timbageek' | 'tieulamtv'>('tieulamtv');
+
   const [visibleUpcomingCount, setVisibleUpcomingCount] = useState(12);
 
   useEffect(() => {
     setVisibleUpcomingCount(12);
   }, [source]);
-
-  // Nguồn phát mặc định
-  const [source, setSource] = useState<'timbageek' | 'tieulamtv'>('tieulamtv');
 
   // Đọc nguồn ưu tiên từ URL query hoặc localStorage
   useEffect(() => {
