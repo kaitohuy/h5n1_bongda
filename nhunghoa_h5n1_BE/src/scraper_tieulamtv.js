@@ -26,7 +26,7 @@ async function fetchMatches() {
 
     try {
         const domain = await getApiDomain();
-        const pageNumbers = [1, 2, 3, 4, 5, 6, 7, 8];
+        const pageNumbers = Array.from({ length: 20 }, (_, i) => i + 1);
         const fetchPromises = pageNumbers.map(page =>
             fetch(`https://${domain}/matches/graph`, {
                 method: 'POST',
