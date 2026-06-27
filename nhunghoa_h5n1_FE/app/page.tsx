@@ -26,6 +26,11 @@ export default function Home() {
 
   const [showAllHot, setShowAllHot] = useState(false);
   const [showAllLive, setShowAllLive] = useState(false);
+  const [visibleUpcomingCount, setVisibleUpcomingCount] = useState(12);
+
+  useEffect(() => {
+    setVisibleUpcomingCount(12);
+  }, [source]);
 
   // Nguồn phát mặc định
   const [source, setSource] = useState<'timbageek' | 'tieulamtv'>('tieulamtv');
@@ -465,10 +470,21 @@ export default function Home() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {upcomingMatches.map(match => (
+                  {upcomingMatches.slice(0, visibleUpcomingCount).map(match => (
                     <MatchCard key={match.id} match={match} onClick={handleMatchSelect} isActive={activeMatch?.id === match.id} />
                   ))}
                 </div>
+
+                {upcomingMatches.length > visibleUpcomingCount && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={() => setVisibleUpcomingCount(prev => prev + 12)}
+                      className="group flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold bg-surface hover:bg-[var(--header-btn-hover)] border border-border transition-all text-blue-500 hover:border-blue-500 hover:shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+                    >
+                      XEM THÊM TRẬN SẮP DIỄN RA <ChevronDown size={18} className="group-hover:translate-y-0.5 transition-transform" />
+                    </button>
+                  </div>
+                )}
               </section>
             )}
 
