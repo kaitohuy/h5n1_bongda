@@ -169,15 +169,30 @@ export default function Home() {
         const data = await res.json();
         if (!data.success) throw new Error(data.error);
         if (mounted) {
+          let serverLabels: string[] = [];
           if (data.servers && data.servers.length > 0) {
             setRawServers(data.servers);
-            const serverLabels = data.servers.map((s: any) =>
+            serverLabels = data.servers.map((s: any) =>
               typeof s === 'string' ? s : (s.label || s.slug || `Server ${s.id || ''}`)
             );
             setAvailableServers(serverLabels);
           } else {
             setRawServers([]);
           }
+
+          // Auto-select Trạng Phệ if activeServer is empty
+          if (!activeServer && data.servers && data.servers.length > 0) {
+            const pheServer = data.servers.find((s: any) => {
+              const label = String(typeof s === 'string' ? s : (s.label || s.commentator || '')).toLowerCase();
+              return label.includes('phệ');
+            });
+            if (pheServer) {
+              const pheLabel = typeof pheServer === 'string' ? pheServer : (pheServer.label || pheServer.slug || `Server ${pheServer.id || ''}`);
+              setActiveServer(pheLabel);
+              return;
+            }
+          }
+
           const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
           const cfWorker = process.env.NEXT_PUBLIC_PROXY_URL || 'https://h5n1-proxy.huynguyendoan0305.workers.dev';
           setStreamUrl(`${cfWorker}/?url=${encodeURIComponent(data.streamUrl)}${refParam}`);
