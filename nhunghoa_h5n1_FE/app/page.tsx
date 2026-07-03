@@ -184,7 +184,7 @@ export default function Home() {
           if (!activeServer && data.servers && data.servers.length > 0) {
             const pheServer = data.servers.find((s: any) => {
               const label = String(typeof s === 'string' ? s : (s.label || s.commentator || '')).toLowerCase();
-              return label.includes('bờm');
+              return label.includes('pờm');
             });
             if (pheServer) {
               const pheLabel = typeof pheServer === 'string' ? pheServer : (pheServer.label || pheServer.slug || `Server ${pheServer.id || ''}`);
