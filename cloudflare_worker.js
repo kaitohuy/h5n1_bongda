@@ -61,10 +61,12 @@ export default {
             parsedTarget.hostname.includes('secufun.xyz') || 
             parsedTarget.hostname.includes('vsc100.com') ||
             parsedTarget.hostname.includes('asynccdn') ||
-            parsedTarget.hostname.includes('100ycdn.com')
+            parsedTarget.hostname.includes('100ycdn.com') ||
+            parsedTarget.hostname.includes('eu.cc') ||
+            parsedTarget.hostname.includes('lilive')
         ) {
-            origin = 'https://sv2.tieulam.info';
-            referer = 'https://sv2.tieulam.info/';
+            origin = 'https://sv2.tieulam2.info';
+            referer = 'https://sv2.tieulam2.info/';
         }
 
         // Xác định loại file để chọn cache TTL

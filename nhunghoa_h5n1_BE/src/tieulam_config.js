@@ -9,6 +9,8 @@ const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 async function resolveDomains() {
     const now = Date.now();
     const mirrors = [
+        'https://sv2.tieulam2.info',
+        'https://sv1.tieulam2.info',
         'https://sv2.tieulam.info',
         'https://sv1.tieulamlive.net',
         'https://sv1.tieulamlive.com',
