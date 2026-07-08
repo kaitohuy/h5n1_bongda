@@ -180,15 +180,15 @@ export default function Home() {
             setRawServers([]);
           }
 
-          // Auto-select Trạng Phệ if activeServer is empty
+          // Auto-select preferred commentator (Trạng Pòm / Trạng Phệ) if activeServer is empty
           if (!activeServer && data.servers && data.servers.length > 0) {
-            const pheServer = data.servers.find((s: any) => {
+            const preferredServer = data.servers.find((s: any) => {
               const label = String(typeof s === 'string' ? s : (s.label || s.commentator || '')).toLowerCase();
-              return label.includes('pờm');
+              return label.includes('pờm') || label.includes('phệ');
             });
-            if (pheServer) {
-              const pheLabel = typeof pheServer === 'string' ? pheServer : (pheServer.label || pheServer.slug || `Server ${pheServer.id || ''}`);
-              setActiveServer(pheLabel);
+            if (preferredServer) {
+              const prefLabel = typeof preferredServer === 'string' ? preferredServer : (preferredServer.label || preferredServer.slug || `Server ${preferredServer.id || ''}`);
+              setActiveServer(prefLabel);
               return;
             }
           }
