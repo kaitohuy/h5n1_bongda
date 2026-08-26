@@ -19,8 +19,8 @@ const router = Router();
 const SCRAPER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-// ── Health check ──────────────────────────────────────────────────────────────
-router.get('/health', (_req, res) => {
+// ── Health check (Render & K8s support) ───────────────────────────────────────
+router.get(['/health', '/healthz', '/api/health'], (_req, res) => {
     res.json({ status: 'ok', service: 'nhunghoa-h5n1-be', timestamp: new Date().toISOString() });
 });
 
@@ -279,6 +279,9 @@ router.get('/api/proxy', (req, res) => {
     if (parsedUrl.hostname.includes('vtvdigital.vn') || parsedUrl.hostname.includes('vtvgo.vn') || parsedUrl.hostname.includes('vtv.vn')) {
         referer = 'https://vtvgo.vn/';
         origin = 'https://vtvgo.vn';
+    } else if (parsedUrl.hostname.includes('fptplay53.net') || parsedUrl.hostname.includes('fptplay.net') || parsedUrl.hostname.includes('fptplay.vn')) {
+        referer = 'https://fptplay.vn/';
+        origin = 'https://fptplay.vn';
     }
 
     const options = {
