@@ -519,7 +519,7 @@ export default function MatchStats({ match, servers, BE_URL }: MatchStatsProps) 
     };
 
     // --- Statistics processing ---
-    const activeStatsObj = statsData ? statsData.find((s: any) => s.type === (statsSubTab === 'all' ? 0 : 1)) : null;
+    const activeStatsObj = Array.isArray(statsData) ? statsData.find((s: any) => s && s.type === (statsSubTab === 'all' ? 0 : 1)) : null;
     const homeStats = activeStatsObj?.stats?.[0] || {};
     const awayStats = activeStatsObj?.stats?.[1] || {};
 

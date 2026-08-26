@@ -8,8 +8,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
-const { prewarmCache: prewarmCdnokvip } = require('./scraper_cdnokvip');
-const { prewarmCache: prewarmTieulamtv } = require('./scraper_tieulamtv');
+const { prewarmCache } = require('./scraper_colatv');
+
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -69,7 +69,5 @@ app.listen(PORT, async () => {
     console.log(`     GET /health`);
     console.log(`     GET /api/extract?url=<slug>\n`);
 
-    // Pre-warm caches
-    prewarmCdnokvip();
-    prewarmTieulamtv();
+    prewarmCache();
 });

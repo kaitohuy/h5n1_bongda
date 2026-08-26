@@ -18,7 +18,8 @@ export interface Match {
     commentator?: string;
     section?: string;
     sourceUrl: string;
-    source?: 'timbageek' | 'tieulamtv';
+    source?: string;
+    startTime?: number;
 }
 
 export interface LeagueInfo {

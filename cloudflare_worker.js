@@ -1,14 +1,6 @@
 /**
  * Cloudflare Worker - H5N1 Bóng Đá Stream Proxy
- * Proxy m3u8/HLS streams từ GavangTV CDN, bypass CORS và 403 Forbidden.
- *
- * Improvements vs v1:
- *  - Cache .ts segments 10s ở CF edge (immutable, giảm latency lặp lại)
- *  - Cache .m3u8 playlist 2s (live playlist, update ~2-4s/lần)
- *  - Dùng CF Cache API thay vì fetch trực tiếp mỗi lần
- *  - Stream response body thay vì buffer (giảm TTFB cho segment lớn)
- *  - Hỗ trợ HEAD request (HLS player thường gửi HEAD trước GET)
- *  - Timeout 15s để tránh CF Worker bị treo
+ * Proxy m3u8/HLS streams từ CDN, bypass CORS và 403 Forbidden.
  */
 
 const SCRAPER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -22,10 +14,6 @@ const CACHE_TTL = {
 
 export default {
     async fetch(request, env, ctx) {
-        const url = new URL(request.url);
-        const targetUrl = url.searchParams.get('url');
-        const ref = url.searchParams.get('ref');
-
         // CORS preflight
         if (request.method === 'OPTIONS') {
             return new Response(null, {
@@ -38,70 +26,73 @@ export default {
             });
         }
 
-        if (!targetUrl) return new Response('Missing url parameter', { status: 400 });
-
-        let parsedTarget;
         try {
-            parsedTarget = new URL(targetUrl);
-        } catch {
-            return new Response('Invalid target URL', { status: 400 });
-        }
+            const url = new URL(request.url);
+            const targetUrl = url.searchParams.get('url');
+            const ref = url.searchParams.get('ref');
 
-        // Tính Referer và Origin từ param hoặc suy luận từ target URL
-        let referer = ref ? decodeURIComponent(ref) : `${parsedTarget.protocol}//${parsedTarget.hostname}/`;
-        let origin;
-        try { origin = new URL(referer).origin; } catch { origin = referer; }
-
-        // BẮT BUỘC: Ép Origin và Referer cho các CDN cụ thể để tránh lỗi 403 Forbidden
-        if (parsedTarget.hostname.includes('cdnfaster') || 
-            parsedTarget.hostname.includes('cdnokvip')) {
-            origin = 'https://timbageek.com';
-            referer = 'https://timbageek.com/';
-        } else if (
-            parsedTarget.hostname.includes('secufun.xyz') || 
-            parsedTarget.hostname.includes('vsc100.com') ||
-            parsedTarget.hostname.includes('asynccdn') ||
-            parsedTarget.hostname.includes('100ycdn.com') ||
-            parsedTarget.hostname.includes('eu.cc') ||
-            parsedTarget.hostname.includes('lilive')
-        ) {
-            origin = 'https://sv2.tieulam2.info';
-            referer = 'https://sv2.tieulam2.info/';
-        }
-
-        // Xác định loại file để chọn cache TTL
-        const pathname = parsedTarget.pathname.toLowerCase();
-        const isM3u8 = pathname.endsWith('.m3u8');
-        const isTs = pathname.endsWith('.ts') || pathname.endsWith('.aac') || pathname.endsWith('.m4s');
-        const cacheTtl = isM3u8 ? CACHE_TTL.m3u8 : isTs ? CACHE_TTL.ts : CACHE_TTL.other;
-
-        // ── CF Cache API ─────────────────────────────────────────────────────────
-        // Chỉ cache GET requests (không cache HEAD hay POST)
-        const cache = caches.default;
-        const cacheKey = new Request(request.url, { method: 'GET' });
-
-        if (request.method === 'GET') {
-            const cached = await cache.match(cacheKey);
-            if (cached) {
-                // Cache hit — clone và thêm header debug
-                const cachedRes = new Response(cached.body, cached);
-                cachedRes.headers.set('X-Cache', 'HIT');
-                cachedRes.headers.set('Access-Control-Allow-Origin', '*');
-                // Trình phát HLS đôi khi cần các header từ response gốc
-                return cachedRes;
+            if (!targetUrl) {
+                return new Response('Missing url parameter', { 
+                    status: 400,
+                    headers: { 'Access-Control-Allow-Origin': '*' }
+                });
             }
-        }
 
-        // ── Fetch từ CDN gốc ─────────────────────────────────────────────────────
-        const fetchHeaders = new Headers();
-        fetchHeaders.set('User-Agent', SCRAPER_UA);
-        fetchHeaders.set('Referer', referer);
-        fetchHeaders.set('Origin', origin);
-        fetchHeaders.set('Accept', '*/*');
-        fetchHeaders.set('Accept-Encoding', 'identity');
+            let parsedTarget;
+            try {
+                parsedTarget = new URL(targetUrl);
+            } catch {
+                return new Response('Invalid target URL', { 
+                    status: 400,
+                    headers: { 'Access-Control-Allow-Origin': '*' }
+                });
+            }
 
-        try {
-            // Timeout 15s để tránh Worker bị treo quá lâu
+            // Tính Referer và Origin từ param hoặc suy luận từ target URL
+            let referer = ref ? decodeURIComponent(ref) : `${parsedTarget.protocol}//${parsedTarget.hostname}/`;
+            let origin = `${parsedTarget.protocol}//${parsedTarget.hostname}`;
+
+            // Bắt buộc ép Origin và Referer cho các CDN để tránh lỗi 403 Forbidden
+            if (parsedTarget.hostname.includes('ftlcbx.com') || 
+                parsedTarget.hostname.includes('meung.app') ||
+                parsedTarget.hostname.includes('miekgo.app')) {
+                origin = 'https://colatv77.live';
+                referer = 'https://colatv77.live/';
+            } else if (parsedTarget.hostname.includes('vtvdigital.vn') || 
+                       parsedTarget.hostname.includes('vtvgo.vn') ||
+                       parsedTarget.hostname.includes('vtv.vn')) {
+                origin = 'https://vtvgo.vn';
+                referer = 'https://vtvgo.vn/';
+            }
+
+            // Xác định loại file để chọn cache TTL
+            const pathname = parsedTarget.pathname.toLowerCase();
+            const isM3u8 = pathname.endsWith('.m3u8');
+            const isTs = pathname.endsWith('.ts') || pathname.endsWith('.aac') || pathname.endsWith('.m4s');
+            const cacheTtl = isM3u8 ? CACHE_TTL.m3u8 : isTs ? CACHE_TTL.ts : CACHE_TTL.other;
+
+            // ── CF Cache API ─────────────────────────────────────────────────────────
+            const cache = caches.default;
+            const cacheKey = new Request(request.url, { method: 'GET' });
+
+            if (request.method === 'GET') {
+                const cached = await cache.match(cacheKey);
+                if (cached) {
+                    const cachedRes = new Response(cached.body, cached);
+                    cachedRes.headers.set('X-Cache', 'HIT');
+                    cachedRes.headers.set('Access-Control-Allow-Origin', '*');
+                    return cachedRes;
+                }
+            }
+
+            // ── Fetch từ CDN gốc ─────────────────────────────────────────────────────
+            const fetchHeaders = new Headers();
+            fetchHeaders.set('User-Agent', SCRAPER_UA);
+            fetchHeaders.set('Referer', referer);
+            fetchHeaders.set('Origin', origin);
+            fetchHeaders.set('Accept', '*/*');
+            fetchHeaders.set('Accept-Encoding', 'identity');
+
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 15000);
 
@@ -131,9 +122,7 @@ export default {
             if (isM3u8ByContent && response.status === 200 && request.method !== 'HEAD') {
                 const text = await response.text();
                 const pathDir = parsedTarget.pathname.replace(/[^/]*$/, '');
-                // cdnBase là base path cho relative URLs (ví dụ: segment.ts)
                 const cdnBase = `${parsedTarget.protocol}//${parsedTarget.hostname}${pathDir}`;
-                // hostBase là base cho paths bắt đầu bằng / (ví dụ: /hls/segment.ts)
                 const hostBase = `${parsedTarget.protocol}//${parsedTarget.hostname}`;
                 
                 const cfWorkerOrigin = `${url.protocol}//${url.host}`;
@@ -158,20 +147,16 @@ export default {
                 resHeaders.set('Content-Length', String(new TextEncoder().encode(rewrittenText).length));
 
                 const finalRes = new Response(rewrittenText, { status: 200, headers: resHeaders });
-
-                // Cache m3u8 result (ngắn hạn)
                 ctx.waitUntil(cache.put(cacheKey, finalRes.clone()));
                 return finalRes;
             }
 
             // ── Non-m3u8 (TS segments, etc.): stream thẳng về client ───────────────
-            // Dùng response.body stream thay vì buffer toàn bộ → giảm TTFB
             const finalRes = new Response(
                 request.method === 'HEAD' ? null : response.body,
                 { status: response.status, headers: resHeaders }
             );
 
-            // Cache TS segments bất đồng bộ (không block response)
             if (request.method === 'GET' && response.status === 200) {
                 ctx.waitUntil(cache.put(cacheKey, finalRes.clone()));
             }

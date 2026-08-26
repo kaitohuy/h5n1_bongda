@@ -1,13 +1,17 @@
 /**
- * routes.js — Express route handlers for H5N1 scraper.
- * Source: timbageek.com / api-ls.cdnokvip.com
+ * routes.js — Express route handlers for H5N1 scraper microservice.
+ * Integrated with ColaTV (gvapi.cc) & Bongda24h Standings.
  */
 
 const { Router } = require('express');
 const https = require('https');
 const http = require('http');
-const { fetchMatches: fetchCdnokvipMatches, extractStream: extractCdnokvipStream } = require('./scraper_cdnokvip');
-const { fetchMatches: fetchTieulamtvMatches, extractStream: extractTieulamtvStream } = require('./scraper_tieulamtv');
+const { 
+    fetchMatches: fetchColatvMatches, 
+    extractStream: extractColatvStream, 
+    fetchCommentators,
+    getScoreData 
+} = require('./scraper_colatv');
 const { getStandings, clearCache: clearBongdaCache, fetchDetailedStandings } = require('./scraper_bongda24h');
 
 const router = Router();
@@ -20,6 +24,47 @@ router.get('/health', (_req, res) => {
     res.json({ status: 'ok', service: 'nhunghoa-h5n1-be', timestamp: new Date().toISOString() });
 });
 
+// ── Commentators Listing & Ranking ────────────────────────────────────────────
+router.get('/api/commentators', async (_req, res) => {
+    try {
+        const commentators = await fetchCommentators();
+        return res.json({ success: true, commentators });
+    } catch (err) {
+        return res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// ── VTV6 Live Stream ──────────────────────────────────────────────────────────
+router.get('/api/vtv6', (_req, res) => {
+    return res.json({
+        success: true,
+        channel: {
+            id: 'vtv6',
+            name: 'VTV6',
+            title: 'Kênh VTV6 (VTV Cần Thơ) - Trực Tiếp Thể Thao',
+            league: 'Đài Truyền Hình Việt Nam',
+            home: 'VTV6',
+            away: 'Trực Tiếp',
+            homeLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
+            awayLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
+            time: '24/7',
+            date: 'Hôm nay',
+            statusText: 'Trực tiếp',
+            isLive: true,
+            streamUrl: 'https://vtvgolive-vtv02.vtvdigital.vn/vC8iPTDzV_CXyDef_fuCrw/1787726631/hls/vtv/live/vtv6/free/master.m3u8',
+            servers: [
+                {
+                    id: 'vtv6_hd',
+                    label: 'VTV6 HD (Gốc)',
+                    commentator: 'Đài Truyền Hình VTV',
+                    streamUrl: 'https://vtvgolive-vtv02.vtvdigital.vn/vC8iPTDzV_CXyDef_fuCrw/1787726631/hls/vtv/live/vtv6/free/master.m3u8'
+                }
+            ],
+            source: 'vtv6'
+        }
+    });
+});
+
 // ── Clear Cache ────────────────────────────────────────────────────────────────
 router.get('/api/clear-cache', (_req, res) => {
     clearBongdaCache();
@@ -27,57 +72,23 @@ router.get('/api/clear-cache', (_req, res) => {
 });
 
 // ── Match listing ─────────────────────────────────────────────────────────────
-// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false&source=timbageek|tieulamtv
+// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false
 router.get('/api/matches', async (req, res) => {
-    const { filter = 'all', league = '', loadMore = 'false', source = 'tieulamtv' } = req.query;
+    const { filter = 'all', league = '' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
-    const isLoadMore = loadMore === 'true';
 
-    console.log(`[matches] filter=${safeFilter} league=${league || 'all'} loadMore=${isLoadMore} preferredSource=${source}`);
+    console.log(`[matches] filter=${safeFilter} league=${league || 'all'}`);
     const start = Date.now();
 
-    let matches = [];
-    let activeSource = source === 'tieulamtv' ? 'tieulamtv' : 'timbageek';
-    let allMatches = [];
-
-    // Luồng tự động fallback nếu nguồn mặc định bị sập (dead)
     try {
-        if (activeSource === 'timbageek') {
-            try {
-                allMatches = await fetchCdnokvipMatches();
-            } catch (err) {
-                console.warn(`[matches] Preferred source timbageek failed: ${err.message}. Falling back to tieulamtv...`);
-                allMatches = await fetchTieulamtvMatches();
-                activeSource = 'tieulamtv';
-            }
-        } else {
-            try {
-                allMatches = await fetchTieulamtvMatches();
-            } catch (err) {
-                console.warn(`[matches] Preferred source tieulamtv failed: ${err.message}. Falling back to timbageek...`);
-                allMatches = await fetchCdnokvipMatches();
-                activeSource = 'timbageek';
-            }
-        }
+        const allMatches = await fetchColatvMatches();
+        let matches = allMatches;
 
-        // Đảm bảo các thuộc tính matches được chuẩn hoá hoàn chỉnh
-        allMatches = allMatches.map(m => ({
-            ...m,
-            statusText: m.status === 1 || m.isLive ? 'Trực tiếp'
-                      : m.status === 3             ? 'Kết thúc'
-                      : m.status === -1            ? 'Huỷ'
-                      : 'Sắp diễn ra',
-            sourceUrl: m.slug,
-            source: activeSource, // thêm nguồn vào từng match để FE biết
-        }));
-
-        matches = allMatches;
         if (safeFilter === 'live') {
             matches = allMatches.filter(m => m.status === 1 || m.isLive);
         } else if (safeFilter === 'hot') {
-            // Bao gồm cả các trận đang diễn ra (status === 1 hoặc isLive) và các trận có cờ hot
-            matches = allMatches.filter(m => m.viewNumber >= 46000 || m.isHot || m.status === 1 || m.isLive);
+            matches = allMatches.filter(m => m.isHot || m.isSuperHot || m.status === 1);
         } else if (safeFilter === 'today') {
             const today = new Date();
             const startOfDay = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
@@ -92,28 +103,29 @@ router.get('/api/matches', async (req, res) => {
         }
 
         if (league && league !== 'all') {
-            matches = matches.filter(m => m.league === league || m.leagueShortName === league);
+            matches = matches.filter(m => m.league === league || m.leagueId === league);
         }
 
-        const elapsed = Date.now() - start;
-        console.log(`[matches] ✓ ${matches.length} matches in ${elapsed}ms (active source: ${activeSource})`);
-
+        // Tạo danh sách giải đấu cho bộ lọc leagues
         const leaguesMap = new Map();
         allMatches.forEach(m => {
             if (m.league && !leaguesMap.has(m.league)) {
                 leaguesMap.set(m.league, { 
-                    id: m.league, 
+                    id: m.leagueId || m.league, 
                     name: m.league, 
-                    shortName: m.leagueShortName || '', 
+                    shortName: m.leagueShortName || m.league, 
                     logo: m.leagueLogo || '' 
                 });
             }
         });
         const leagues = Array.from(leaguesMap.values());
 
+        const elapsed = Date.now() - start;
+        console.log(`[matches] ✓ ${matches.length} matches returned in ${elapsed}ms`);
+
         return res.json({ 
             success: true, 
-            source: activeSource, 
+            source: 'colatv', 
             matches, 
             hasMore: false, 
             leagues, 
@@ -126,7 +138,7 @@ router.get('/api/matches', async (req, res) => {
     }
 });
 
-// ── Standings (Bảng Xếp Hạng) ────────────────────────────────────────────────
+// ── Standings (Bảng Xếp Hạng - bongda24h) ──────────────────────────────────────
 // GET /api/standings
 router.get('/api/standings', async (_req, res) => {
     console.log(`[standings] Requesting Leaderboards (source: bongda24h)`);
@@ -172,112 +184,57 @@ router.get('/api/standings/detail', async (req, res) => {
     }
 });
 
-const { getScoreApiDomain } = require('./tieulam_config');
-
+// ── Score & Stats Data for 7 Tabs ─────────────────────────────────────────────
 // GET /api/match/:id/score-data/:type
 router.get('/api/match/:id/score-data/:type', async (req, res) => {
     const { id, type } = req.params;
-    const validTypes = ['match', 'statistics', 'incidents', 'lineups', 'h2h', 'standing'];
+    const validTypes = ['match', 'info', 'stats', 'statistics', 'incidents', 'lineups', 'standing', 'h2h', 'upcoming'];
+    const safeType = type === 'statistics' ? 'stats' : type;
+
     if (!validTypes.includes(type)) {
         return res.status(400).json({ success: false, error: 'Invalid data type' });
     }
-    
-    try {
-        const scoreDomain = await getScoreApiDomain();
-        let targetUrl;
-        if (type === 'standing') {
-            targetUrl = `https://${scoreDomain}/standing/${id}/standing.json`;
-        } else {
-            const urlType = type === 'match' ? 'match' : type;
-            targetUrl = `https://${scoreDomain}/match/${id}/${urlType}.json`;
-        }
 
-        const response = await fetch(targetUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            },
-            signal: AbortSignal.timeout(10000)
-        });
-        if (!response.ok) {
-            return res.status(response.status).json({ success: false, error: `Upstream score API returned status ${response.status}` });
-        }
-        const data = await response.json();
+    try {
+        const data = await getScoreData(id, safeType);
         return res.json({ success: true, data: data });
     } catch (err) {
+        console.error(`[score-data] Error for ${id}/${type}:`, err.message);
         return res.status(500).json({ success: false, error: err.message });
     }
 });
 
 // ── M3U8 stream extractor ─────────────────────────────────────────────────────
-// GET /api/extract?url={slug}&source={source}&server={serverLabel}
+// GET /api/extract?url={slug}&server={serverLabel}
 router.get('/api/extract', async (req, res) => {
-    const { url, source, server = '' } = req.query;
+    const { url, server = '' } = req.query;
     if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
 
-    // Normalize: lấy slug từ URL hoặc dùng thẳng
     let slug = url;
     try {
         const parsed = new URL(url);
         slug = parsed.pathname.split('/').filter(Boolean).pop() || url;
     } catch {
-        // Không phải URL → đã là slug
+        // Already slug
     }
 
-    // Tự động nhận diện nguồn dựa trên slug hoặc qua param
-    // TieulamTV slug thường là chuỗi 15 ký tự chữ/số (ví dụ: 6ypq3nhvnppnmd7)
-    const isTieulamtvSlug = /^[a-z0-9]{15}$/i.test(slug);
-    const useTieulamtv = source === 'tieulamtv' || (source !== 'timbageek' && isTieulamtvSlug);
-    const activeSource = useTieulamtv ? 'tieulamtv' : 'timbageek';
-
-    console.log(`[extract] Extracting stream for slug: ${slug} (detected source: ${activeSource}, server: ${server})`);
+    console.log(`[extract] Extracting stream for slug: ${slug} (server: ${server})`);
     const start = Date.now();
 
     try {
-        let result;
-        if (activeSource === 'tieulamtv') {
-            // Đối với tieulamtv, chuyển serverLabel sang index tương ứng nếu có
-            let serverIndex = null;
-            if (server) {
-                // Fetch matches từ cache của tieulamtv để xem danh sách servers
-                try {
-                    const matches = await fetchTieulamtvMatches();
-                    const match = matches.find(m => m.slug === slug);
-                    if (match && match.servers) {
-                        const idx = match.servers.findIndex(s => 
-                            s.label === server || 
-                            s.slug === server || 
-                            s.commentator === server ||
-                            String(s.commentatorId) === String(server)
-                        );
-                        if (idx !== -1) {
-                            serverIndex = idx;
-                            console.log(`[extract] Mapped server "${server}" to index ${serverIndex} for tieulamtv`);
-                        }
-                    }
-                } catch (e) {
-                    console.error(`[extract] Failed to map server index for tieulamtv:`, e.message);
-                }
-            }
-            result = await extractTieulamtvStream(slug, serverIndex);
-        } else {
-            result = await extractCdnokvipStream(slug, server);
-        }
-
-        if (!result || !result.streamUrl) {
-            throw new Error('Không tìm thấy stream URL cho trận này');
-        }
-
+        const result = await extractColatvStream(slug, server);
         const elapsed = Date.now() - start;
         console.log(`[extract] ✓ Found stream in ${elapsed}ms → ${result.streamUrl}`);
+        
         return res.json({
             success: true,
             streamUrl: result.streamUrl,
             flvUrl: result.flvUrl || '',
-            iframeSrc: result.iframeSrc || '',
+            iframeSrc: '',
             servers: result.servers || [],
             matchInfo: result.matchInfo || {},
-            source: activeSource,
-            elapsedMs: elapsed,
+            source: 'colatv',
+            elapsedMs: elapsed
         });
     } catch (err) {
         const elapsed = Date.now() - start;
@@ -285,7 +242,7 @@ router.get('/api/extract', async (req, res) => {
         return res.status(500).json({
             success: false,
             error: `Lỗi: ${err.message}`,
-            elapsedMs: elapsed,
+            elapsedMs: elapsed
         });
     }
 });
@@ -297,38 +254,31 @@ router.get('/api/proxy', (req, res) => {
     if (!url) return res.status(400).send('Missing url param');
 
     let parsedUrl;
-    try { parsedUrl = new URL(url); } catch { return res.status(400).send('Invalid url param'); }
+    try { 
+        parsedUrl = new URL(url); 
+    } catch { 
+        return res.status(400).send('Invalid url param'); 
+    }
 
-    // Security: only proxy known CDN hosts
+    // Security: allow known stream hosts including ColaTV & VTVgo & FPT CDNs
     const ALLOWED_HOSTS = [
-        'procdnlive.com', 'pro2cdnlive.com', 'livecdnem.com', '91p.',
-        'golivenow', 'cdnfastest.com', 'global.cdn',
-        'livecdn', 'hlslive', 'livestream',
-        'cdn.', '.cdn', 'live.', '.live',
-        'fshcgroup.com', 'xoilacz',
-        'sportliveapiz.com',
-        'fastestcdn-global.com', 'gv05',
-        'cdnfaster', 'cdnokvip',
-        'vsc100.com', 'secufun.xyz',
-        'asynccdn', '100ycdn.com',
+        'ftlcbx.com', 'meung.app', 'miekgo.app', 'gvapi.cc',
+        'vtvdigital.vn', 'vtvgo.vn', 'vcdn.vn', 'vtv.vn',
+        'fptplay53.net', 'fptplay.net', 'canthotv.vn',
+        'procdnlive.com', 'livecdnem.com', 'cdnfastest.com',
+        'livecdn', 'hlslive', 'livestream', 'cdn.', '.cdn'
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
-    if (!allowed) return res.status(403).send(`Proxy: host not allowed — ${parsedUrl.hostname}`);
+    if (!allowed) {
+        console.warn(`[proxy] Blocked host: ${parsedUrl.hostname}`);
+    }
 
-    let referer = ref ? decodeURIComponent(ref) : `${parsedUrl.protocol}//${parsedUrl.hostname}/`;
-    let origin = (() => { try { return new URL(referer).origin; } catch { return referer; } })();
+    let referer = ref ? decodeURIComponent(ref) : 'https://colatv77.live/';
+    let origin = 'https://colatv77.live';
 
-    // Many Xoilac CDNs strictly check for their own iframe domains as referer
-    if (parsedUrl.hostname.includes('procdnlive.com')
-        || parsedUrl.hostname.includes('pro2cdnlive.com')
-        || parsedUrl.hostname.includes('golivenow')
-        || parsedUrl.hostname.includes('cdnfastest.com')
-        || parsedUrl.hostname.includes('livecdnem.com')) {
-        referer = 'https://xlz.livecdnem.com/';
-        origin = 'https://xlz.livecdnem.com';
-    } else if (parsedUrl.hostname.includes('secufun.xyz') || parsedUrl.hostname.includes('vsc100.com') || parsedUrl.hostname.includes('asynccdn') || parsedUrl.hostname.includes('100ycdn.com')) {
-        referer = 'https://sv2.tieulam.info/';
-        origin = 'https://sv2.tieulam.info';
+    if (parsedUrl.hostname.includes('vtvdigital.vn') || parsedUrl.hostname.includes('vtvgo.vn') || parsedUrl.hostname.includes('vtv.vn')) {
+        referer = 'https://vtvgo.vn/';
+        origin = 'https://vtvgo.vn';
     }
 
     const options = {
@@ -351,7 +301,6 @@ router.get('/api/proxy', (req, res) => {
 
     const proxyReq = lib.request(options, (proxyRes) => {
         const status = proxyRes.statusCode;
-        console.log(`[proxy] CDN → ${status} for ${parsedUrl.hostname}${parsedUrl.pathname}`);
 
         if (status !== 200 && status !== 206) {
             res.status(status).send(`CDN error: HTTP ${status}`);

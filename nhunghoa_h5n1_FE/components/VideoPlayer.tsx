@@ -229,12 +229,11 @@ export default function VideoPlayer({ match, streamUrl, loadingMsg, activeServer
                         ref={iframeRef}
                         key={streamUrl}
                         src={streamUrl}
-                        className="w-full h-full border-0 rounded-b-2xl object-contain"
-                        allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                        className="w-full h-full border-0 rounded-b-2xl"
+                        allow="autoplay; fullscreen; encrypted-media; picture-in-picture; clipboard-write"
                         allowFullScreen
                         onLoad={() => setIsLoading(false)}
                         onError={() => { setIsError(true); setIsLoading(false); }}
-                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                         title={`${match.home} vs ${match.away}`}
                     />
                 ) : (
