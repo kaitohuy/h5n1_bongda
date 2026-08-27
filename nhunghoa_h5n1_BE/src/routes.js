@@ -34,8 +34,17 @@ router.get('/api/commentators', async (_req, res) => {
     }
 });
 
-// ── VTV6 Live Stream ──────────────────────────────────────────────────────────
+// ── VTV6 Dynamic Live Streams ──────────────────────────────────────────────────
 router.get('/api/vtv6', (_req, res) => {
+    const servers = [
+        {
+            id: 'vtv6_hd',
+            label: 'VTV6 Ultra HD (1080p Gốc)',
+            commentator: 'Đài Truyền Hình VTV',
+            streamUrl: 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8'
+        }
+    ];
+
     return res.json({
         success: true,
         channel: {
@@ -51,15 +60,8 @@ router.get('/api/vtv6', (_req, res) => {
             date: 'Hôm nay',
             statusText: 'Trực tiếp',
             isLive: true,
-            streamUrl: 'https://vtvgolive-vtv02.vtvdigital.vn/vC8iPTDzV_CXyDef_fuCrw/1787726631/hls/vtv/live/vtv6/free/master.m3u8',
-            servers: [
-                {
-                    id: 'vtv6_hd',
-                    label: 'VTV6 HD (Gốc)',
-                    commentator: 'Đài Truyền Hình VTV',
-                    streamUrl: 'https://vtvgolive-vtv02.vtvdigital.vn/vC8iPTDzV_CXyDef_fuCrw/1787726631/hls/vtv/live/vtv6/free/master.m3u8'
-                }
-            ],
+            streamUrl: servers[0].streamUrl,
+            servers: servers,
             source: 'vtv6'
         }
     });

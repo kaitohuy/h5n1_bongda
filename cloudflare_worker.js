@@ -68,6 +68,12 @@ export default {
                        parsedTarget.hostname.includes('fptplay.vn')) {
                 origin = 'https://fptplay.vn';
                 referer = 'https://fptplay.vn/';
+            } else if (parsedTarget.hostname.includes('dethich.pw')) {
+                origin = 'https://dethich.pw';
+                referer = 'https://dethich.pw/';
+            } else if (parsedTarget.hostname.includes('canthotv.vn')) {
+                origin = 'https://live.canthotv.vn';
+                referer = 'https://live.canthotv.vn/';
             }
 
             // Xác định loại file để chọn cache TTL
@@ -133,18 +139,28 @@ export default {
                 const cfWorkerOrigin = `${url.protocol}//${url.host}`;
                 const refEncoded = encodeURIComponent(referer);
 
+                const resolveUrl = (relOrAbs) => {
+                    if (relOrAbs.startsWith('http')) return relOrAbs;
+                    if (relOrAbs.startsWith('/')) return hostBase + relOrAbs;
+                    return cdnBase + relOrAbs;
+                };
+
                 const rewrittenText = text.split('\n').map(line => {
                     const trimmed = line.trim();
-                    if (!trimmed || trimmed.startsWith('#')) return line;
-                    
-                    let absUrl;
-                    if (trimmed.startsWith('http')) {
-                        absUrl = trimmed;
-                    } else if (trimmed.startsWith('/')) {
-                        absUrl = hostBase + trimmed;
-                    } else {
-                        absUrl = cdnBase + trimmed;
+                    if (!trimmed) return line;
+
+                    // Rewrite URI="..." in #EXT tags (such as #EXT-X-MEDIA, #EXT-X-KEY, #EXT-X-MAP)
+                    if (trimmed.startsWith('#')) {
+                        if (trimmed.includes('URI="')) {
+                            return line.replace(/URI="([^"]+)"/g, (_, uriMatch) => {
+                                const abs = resolveUrl(uriMatch);
+                                return `URI="${cfWorkerOrigin}/?url=${encodeURIComponent(abs)}&ref=${refEncoded}"`;
+                            });
+                        }
+                        return line;
                     }
+
+                    const absUrl = resolveUrl(trimmed);
                     return `${cfWorkerOrigin}/?url=${encodeURIComponent(absUrl)}&ref=${refEncoded}`;
                 }).join('\n');
 

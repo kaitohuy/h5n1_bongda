@@ -10,7 +10,7 @@ import { Match, FilterTab } from './types';
 import { normalizeCommentator } from '@/components/CommentatorSettingsModal';
 
 const BE_URL = process.env.NEXT_PUBLIC_BE_URL || 'http://localhost:8000';
-const VTV6_STREAM_URL = 'https://live-a.fptplay53.net/live/media/vtv6/live247-hls-avc/index.m3u8';
+const VTV6_STREAM_URL = 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8';
 
 const VTV6_MATCH_DATA: Match = {
   id: 'vtv6',
@@ -175,9 +175,7 @@ export default function Home() {
     // If active match is VTV6 direct
     if (activeMatch.source === 'vtv6') {
       const vtvServers = [
-        { label: 'VTV6 Ultra HD (1080p 50fps)', url: 'https://live-a.fptplay53.net/live/media/vtv6/live247-hls-avc/index.m3u8' },
-        { label: 'VTV6 HD (FPT Live)', url: 'https://live.fptplay53.net/live/media/vtv6/live247-hls-avc/index.m3u8' },
-        { label: 'VTV6 VIP (CDN Backup)', url: 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8' }
+        { label: 'VTV6 Ultra HD (1080p Gốc)', url: 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8', ref: 'https://fptplay.vn/' }
       ];
       setAvailableServers(vtvServers.map(s => s.label));
 
@@ -186,9 +184,14 @@ export default function Home() {
         setActiveServer(chosen.label);
       }
 
-      const proxyBase = process.env.NEXT_PUBLIC_PROXY_URL || `${BE_URL}/api/proxy`;
-      const sep = proxyBase.includes('?') ? '&' : '?';
-      setStreamUrl(`${proxyBase}${sep}url=${encodeURIComponent(chosen.url)}&ref=${encodeURIComponent('https://fptplay.vn/')}`);
+      if (chosen.url.includes('.m3u8') || chosen.url.includes('.flv')) {
+        const proxyBase = process.env.NEXT_PUBLIC_PROXY_URL || `${BE_URL}/api/proxy`;
+        const sep = proxyBase.includes('?') ? '&' : '?';
+        const refParam = chosen.ref ? `&ref=${encodeURIComponent(chosen.ref)}` : '';
+        setStreamUrl(`${proxyBase}${sep}url=${encodeURIComponent(chosen.url)}${refParam}`);
+      } else {
+        setStreamUrl(chosen.url);
+      }
       setLoadingStreamMsg('');
       return;
     }
