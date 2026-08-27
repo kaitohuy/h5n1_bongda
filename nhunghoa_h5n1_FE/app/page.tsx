@@ -15,11 +15,11 @@ const VTV6_STREAM_URL = 'https://vips-livecdn.fptplay.net/live/media/vtv6/live24
 const VTV6_MATCH_DATA: Match = {
   id: 'vtv6',
   home: 'Kênh VTV6',
-  away: 'VTV Cần Thơ',
+  away: 'Trực Tiếp',
   homeLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
   awayLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
   leagueId: 'vtv',
-  league: 'Đài Truyền Hình Việt Nam (VTVgo)',
+  league: 'Đài Truyền Hình Việt Nam',
   leagueLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
   time: '24/7',
   date: 'Trực tiếp',
@@ -175,7 +175,7 @@ export default function Home() {
     // If active match is VTV6 direct
     if (activeMatch.source === 'vtv6') {
       const vtvServers = [
-        { label: 'VTV6 Ultra HD (1080p Gốc)', url: 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8', ref: 'https://fptplay.vn/' }
+        { label: 'VTV6 Ultra HD (Trực Tiếp)', url: 'https://vips-livecdn.fptplay.net/live/media/vtv6/live247-hls-avc/index.m3u8' }
       ];
       setAvailableServers(vtvServers.map(s => s.label));
 
@@ -184,14 +184,9 @@ export default function Home() {
         setActiveServer(chosen.label);
       }
 
-      if (chosen.url.includes('.m3u8') || chosen.url.includes('.flv')) {
-        const proxyBase = process.env.NEXT_PUBLIC_PROXY_URL || `${BE_URL}/api/proxy`;
-        const sep = proxyBase.includes('?') ? '&' : '?';
-        const refParam = chosen.ref ? `&ref=${encodeURIComponent(chosen.ref)}` : '';
-        setStreamUrl(`${proxyBase}${sep}url=${encodeURIComponent(chosen.url)}${refParam}`);
-      } else {
-        setStreamUrl(chosen.url);
-      }
+      // Phát trực tiếp thẳng từ IP người dùng (vips-livecdn.fptplay.net hỗ trợ CORS * đầy đủ)
+      // Giúp không bị Cloudflare Worker (IP Datacenter nước ngoài) dính 403 Forbidden!
+      setStreamUrl(chosen.url);
       setLoadingStreamMsg('');
       return;
     }
@@ -442,7 +437,7 @@ export default function Home() {
                       <Tv size={48} className="text-red-500" />
                     </div>
                     <h2 className="text-2xl md:text-4xl font-black tracking-tight text-foreground">
-                      Kênh VTV6 (VTV Cần Thơ)
+                      Kênh VTV6 (Trực Tiếp Thể Thao)
                     </h2>
                     <p className="text-xs md:text-sm text-foreground/60 max-w-xl">
                       Kênh truyền hình trực tiếp thể thao & giải trí 24/7 từ Đài Truyền Hình Việt Nam. Bấm để phát trực tiếp ngay trên website!

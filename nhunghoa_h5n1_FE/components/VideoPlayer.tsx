@@ -71,6 +71,10 @@ export default function VideoPlayer({
     const [zoomLevel, setZoomLevel] = useState(100); // 100% to 150%
     const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([]);
     const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = Auto
+    
+    // Auto catch-up latency settings (Default: OFF as requested)
+    const [isAutoCatchup, setIsAutoCatchup] = useState(false);
+    const [catchupThreshold, setCatchupThreshold] = useState(3); // Default 3s
 
     const useIframe = isIframePlayerUrl(streamUrl);
 
@@ -157,8 +161,8 @@ export default function VideoPlayer({
                             enableWorker: true,
                             enableStashBuffer: false,
                             liveBufferLatencyChasing: true,
-                            liveBufferLatencyMaxLatency: 2.0,
-                            liveBufferLatencyMinRemain: 0.5,
+                            liveBufferLatencyMaxLatency: 5.0,
+                            liveBufferLatencyMinRemain: 1.0,
                         }
                     );
                     flvPlayer.attachMediaElement(video);
@@ -183,14 +187,14 @@ export default function VideoPlayer({
                         enableWorker: true,
                         lowLatencyMode: false,
                         backBufferLength: 30,
-                        maxBufferLength: 20,          // Giữ bộ nhớ đệm 20s an toàn chống giật lag khi mạng chập chờn
+                        maxBufferLength: 20,
                         maxMaxBufferLength: 60,
                         maxBufferSize: 60 * 1000 * 1000,
                         manifestLoadingMaxRetry: 5,
                         levelLoadingMaxRetry: 5,
                         fragLoadingMaxRetry: 5,
-                        liveSyncDurationCount: 2,     // Buffer chuẩn 2 chunks (~4-5s) chống gián đoạn
-                        liveMaxLatencyDurationCount: 15, // Không nhảy cóc đột ngột gây khựng hình
+                        liveSyncDurationCount: 2,
+                        liveMaxLatencyDurationCount: 15,
                         liveDurationInfinity: true,
                     });
                     hlsRef.current = hls;
@@ -257,7 +261,7 @@ export default function VideoPlayer({
         };
     }, [streamUrl, useIframe]);
 
-    // ── Video Events Listener with Smart Adaptive Speedup (Giống YouTube) ────
+    // ── Video Events Listener with Smart Adaptive Speedup ────────────────────
     useEffect(() => {
         const video = videoRef.current;
         if (!video) return;
@@ -267,14 +271,12 @@ export default function VideoPlayer({
             if (video.seekable && video.seekable.length > 0) {
                 const liveEdge = video.seekable.end(video.seekable.length - 1);
                 const latency = Math.max(0, liveEdge - video.currentTime);
-                setIsAtLiveEdge(latency < 4.5);
+                setIsAtLiveEdge(latency < (catchupThreshold + 1));
 
-                // Cơ chế bắt kịp thông minh (Micro-speedup):
-                // Nếu video đang bị chậm hơn 5s nhưng mạng đủ mượt -> tăng nhẹ tốc độ lên 1.05x để đuổi kịp mà KHÔNG giật lag
-                // Khi đã bắt kịp sát live edge (< 3s) -> trả về 1.0x bình thường
-                if (latency > 5.0 && !video.paused) {
-                    video.playbackRate = 1.05;
-                } else if (latency <= 3.0) {
+                // Nếu người dùng BẬT chế độ "Tự động bắt kịp trực tiếp":
+                if (isAutoCatchup && latency > catchupThreshold && !video.paused) {
+                    video.playbackRate = 1.05; // Tăng nhẹ 1.05x để đuổi kịp
+                } else {
                     video.playbackRate = 1.0;
                 }
             }
@@ -300,7 +302,7 @@ export default function VideoPlayer({
             video.removeEventListener('pause', onPause);
             video.removeEventListener('volumechange', onVolumeChange);
         };
-    }, []);
+    }, [isAutoCatchup, catchupThreshold]);
 
     // ── Keyboard Shortcuts (Space, F, M, P) ──────────────────────────────────
     useEffect(() => {
@@ -461,15 +463,16 @@ export default function VideoPlayer({
                     </span>
                 </div>
 
-                {/* Right controls: Server select, Close */}
+                {/* Right controls: Server & Commentator selector, Settings, Fullscreen, Close */}
                 <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                    {/* Server selector (if > 1) */}
-                    {availableServers.length > 1 && (
+                    {/* Server / BLV selector */}
+                    {availableServers.length > 0 && (
                         <div className="relative">
                             <select
                                 value={activeServer}
                                 onChange={(e) => onServerChange(e.target.value)}
-                                className="bg-background/80 border border-border text-foreground text-xs font-bold rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:border-accent cursor-pointer appearance-none shadow-sm"
+                                className="bg-background/80 border border-border text-foreground text-xs font-bold rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:border-accent cursor-pointer appearance-none shadow-sm max-w-[140px] sm:max-w-[180px] truncate"
+                                title="Đổi Server / Đổi BLV"
                             >
                                 {availableServers.map((s) => (
                                     <option key={s} value={s} className="bg-surface text-foreground py-1">
@@ -487,11 +490,11 @@ export default function VideoPlayer({
                     <button
                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                         className={`p-1.5 rounded-lg border transition-all ${
-                            isSettingsOpen || isSuperClear || zoomLevel > 100
+                            isSettingsOpen || isSuperClear || zoomLevel > 100 || isAutoCatchup
                                 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 shadow-sm'
                                 : 'bg-background/70 text-foreground/70 border-border hover:bg-background hover:text-foreground'
                         }`}
-                        title="Cài đặt video (Độ nét, Zoom, Super Clear)"
+                        title="Cài đặt video (Độ nét, Zoom, Super Clear, Bắt kịp Live)"
                         aria-label="Cài đặt video"
                     >
                         <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
@@ -676,11 +679,11 @@ export default function VideoPlayer({
                                         ref={settingsBtnRef}
                                         onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                                         className={`p-2 rounded-xl border transition-all ${
-                                            isSettingsOpen || isSuperClear || zoomLevel > 100
+                                            isSettingsOpen || isSuperClear || zoomLevel > 100 || isAutoCatchup
                                                 ? 'bg-amber-500/30 text-amber-300 border-amber-500/50 shadow-md ring-2 ring-amber-500/20'
                                                 : 'bg-white/10 text-white/80 border-white/10 hover:bg-white/20 hover:text-white'
                                         }`}
-                                        title="Cài đặt video (Độ nét, Zoom, Super Clear)"
+                                        title="Cài đặt video (Độ nét, Zoom, Super Clear, Bắt kịp Live)"
                                     >
                                         <Settings size={17} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200 text-amber-400' : 'transition-transform duration-200'} />
                                     </button>
@@ -689,7 +692,7 @@ export default function VideoPlayer({
                                     {isSettingsOpen && (
                                         <div 
                                             ref={settingsRef}
-                                            className="absolute right-0 bottom-full mb-3 w-72 bg-slate-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 text-xs z-50 text-white backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 duration-150 space-y-4"
+                                            className="absolute right-0 bottom-full mb-3 w-80 bg-slate-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 text-xs z-50 text-white backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 duration-150 space-y-4"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
@@ -765,7 +768,54 @@ export default function VideoPlayer({
                                                 </div>
                                             </div>
 
-                                            {/* 3. Custom Zoom Slider (100% - 150%) */}
+                                            {/* 3. Auto Catch-up (Tự động bắt kịp trực tiếp) */}
+                                            <div className="space-y-2 pt-1 border-t border-white/10">
+                                                <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <div className="font-bold text-xs flex items-center gap-1.5 text-white">
+                                                            <FastForward size={14} className="text-rose-400" />
+                                                            Tự Động Bắt Kịp Trực Tiếp
+                                                        </div>
+                                                        <div className="text-[10px] text-white/50">Tăng tốc 1.05x để đuổi kịp khi bị chậm</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setIsAutoCatchup(!isAutoCatchup)}
+                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                            isAutoCatchup ? 'bg-rose-500' : 'bg-white/20'
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                                                isAutoCatchup ? 'translate-x-4' : 'translate-x-0'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                {/* Threshold Config (Khi Bật) */}
+                                                {isAutoCatchup && (
+                                                    <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 animate-in fade-in zoom-in-95 duration-150">
+                                                        <span className="text-[11px] text-white/70">Ngưỡng trễ tối đa:</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {[2, 3, 5, 8].map((sec) => (
+                                                                <button
+                                                                    key={sec}
+                                                                    onClick={() => setCatchupThreshold(sec)}
+                                                                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all ${
+                                                                        catchupThreshold === sec
+                                                                            ? 'bg-rose-500/30 text-rose-300 border-rose-500/50 shadow-sm'
+                                                                            : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                                                                    }`}
+                                                                >
+                                                                    {sec}s
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* 4. Custom Zoom Slider (100% - 150%) */}
                                             <div className="space-y-2 pt-1 border-t border-white/10">
                                                 <div className="flex items-center justify-between">
                                                     <span className="font-bold text-xs flex items-center gap-1.5 text-white">

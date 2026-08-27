@@ -50,9 +50,9 @@ router.get('/api/vtv6', (_req, res) => {
         channel: {
             id: 'vtv6',
             name: 'VTV6',
-            title: 'Kênh VTV6 (VTV Cần Thơ) - Trực Tiếp Thể Thao',
+            title: 'Kênh VTV6 - Trực Tiếp Thể Thao',
             league: 'Đài Truyền Hình Việt Nam',
-            home: 'VTV6',
+            home: 'Kênh VTV6',
             away: 'Trực Tiếp',
             homeLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',
             awayLogo: 'https://vtvgo-assets.vtvdigital.vn/assets/images/v2/logo/VTV6_150x902_1675159127.webp',

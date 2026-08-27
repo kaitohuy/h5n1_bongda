@@ -68,12 +68,6 @@ export default {
                        parsedTarget.hostname.includes('fptplay.vn')) {
                 origin = 'https://fptplay.vn';
                 referer = 'https://fptplay.vn/';
-            } else if (parsedTarget.hostname.includes('dethich.pw')) {
-                origin = 'https://dethich.pw';
-                referer = 'https://dethich.pw/';
-            } else if (parsedTarget.hostname.includes('canthotv.vn')) {
-                origin = 'https://live.canthotv.vn';
-                referer = 'https://live.canthotv.vn/';
             }
 
             // Xác định loại file để chọn cache TTL

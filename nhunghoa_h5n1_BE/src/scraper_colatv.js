@@ -170,23 +170,63 @@ async function fetchMatches() {
             if (sc[3] && sc[3].length > 0) awayScore = sc[3][0];
         }
 
-        // Danh sách BLV & Stream servers
+        // Danh sách BLV & Stream servers (Server 1, Server 2, CDNs)
         const anchors = raw.anchorAppointmentVoList || [];
         const servers = [];
 
         anchors.forEach((a, idx) => {
-            const streamUrl = a.playStreamAddress2 || a.playStreamAddress || (a.servers && a.servers[0]) || '';
-            const label = a.nickName ? `${a.nickName}` : `BLV Server ${idx + 1}`;
-            servers.push({
-                id: a.houseId || `anchor_${idx + 1}`,
-                label: label,
-                commentator: a.nickName || '',
-                streamUrl: streamUrl,
-                flvUrl: a.playStreamAddress || '',
-                userImage: a.userImage || '',
-                fansCount: a.fansCount || 0,
-                visitHistory: a.visitHistory || 0,
-                commentatorId: a.houseId || matchId
+            const nick = a.nickName ? `${a.nickName}` : `BLV ${idx + 1}`;
+            const cdnServers = Array.isArray(a.servers) ? a.servers : [];
+            const primaryHls = a.playStreamAddress2 || a.playStreamAddress || cdnServers[0] || '';
+            const backupHls = (cdnServers[0] && cdnServers[0] !== primaryHls) 
+                ? cdnServers[0] 
+                : (a.playStreamAddress && a.playStreamAddress !== primaryHls ? a.playStreamAddress : '');
+
+            // Server 1 (Chính)
+            if (primaryHls) {
+                servers.push({
+                    id: `${a.houseId || idx}_srv1`,
+                    label: anchors.length > 1 ? `${nick} (Server 1)` : `${nick} - Server 1 (Chính)`,
+                    commentator: nick,
+                    streamUrl: primaryHls,
+                    flvUrl: a.playStreamAddress || '',
+                    userImage: a.userImage || '',
+                    fansCount: a.fansCount || 0,
+                    visitHistory: a.visitHistory || 0,
+                    commentatorId: a.houseId || matchId
+                });
+            }
+
+            // Server 2 (Dự phòng CDN)
+            if (backupHls) {
+                servers.push({
+                    id: `${a.houseId || idx}_srv2`,
+                    label: anchors.length > 1 ? `${nick} (Server 2)` : `${nick} - Server 2 (Dự Phòng)`,
+                    commentator: nick,
+                    streamUrl: backupHls,
+                    flvUrl: a.playStreamAddress || '',
+                    userImage: a.userImage || '',
+                    fansCount: a.fansCount || 0,
+                    visitHistory: a.visitHistory || 0,
+                    commentatorId: a.houseId || matchId
+                });
+            }
+
+            // Các server dự phòng khác nếu có
+            cdnServers.slice(1).forEach((extraUrl, extraIdx) => {
+                if (extraUrl && extraUrl !== primaryHls && extraUrl !== backupHls) {
+                    servers.push({
+                        id: `${a.houseId || idx}_srv${extraIdx + 3}`,
+                        label: anchors.length > 1 ? `${nick} (Server ${extraIdx + 3})` : `${nick} - Server ${extraIdx + 3}`,
+                        commentator: nick,
+                        streamUrl: extraUrl,
+                        flvUrl: '',
+                        userImage: a.userImage || '',
+                        fansCount: a.fansCount || 0,
+                        visitHistory: a.visitHistory || 0,
+                        commentatorId: a.houseId || matchId
+                    });
+                }
             });
         });
 

@@ -325,7 +325,7 @@ export default function CommentatorSettingsModal({
                         <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20 flex items-center justify-center shadow-inner">
                             <Tv size={32} />
                         </div>
-                        <h4 className="text-base font-extrabold text-foreground">Kênh VTV6 (VTV Cần Thơ)</h4>
+                        <h4 className="text-base font-extrabold text-foreground">Kênh VTV6 (Trực Tiếp Thể Thao)</h4>
                         <p className="text-xs text-foreground/60 max-w-md leading-relaxed">
                             Kênh truyền hình trực tiếp thể thao 24/7 từ Đài Truyền Hình Việt Nam. Luồng phát trực tiếp gốc của VTV được phát trực tiếp tại trang chủ mà không sử dụng BLV riêng.
                         </p>
