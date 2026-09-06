@@ -29,8 +29,9 @@ match-node*.html
 xoilac-full*.html
 xoilac-text.txt
 
-# ===== SCREENSHOTS / IMAGES (debug) =====
+# ===== SCREENSHOTS / IMAGES / MEDIA (debug) =====
 *.png
+*.mp4
 xoilac-preview.png
 xoilac-screenshot.png
 
