@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Loader2, ChevronDown, Flame, Calendar, Clock, ListFilter, Tv } from 'lucide-react';
+import { Loader2, ChevronDown, Flame, Calendar, Clock, ListFilter, Tv, Headphones } from 'lucide-react';
 import Header from '@/components/Header';
 import MatchCard from '@/components/MatchCard';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -44,7 +44,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const savedSrc = localStorage.getItem('h5n1_default_source');
-      if (savedSrc && (savedSrc === 'vtv6' || savedSrc === 'colatv')) {
+      if (savedSrc && (savedSrc === 'vtv6' || savedSrc === 'colatv' || savedSrc === 'cakhiatv')) {
         setCurrentSource(savedSrc);
       }
     } catch {}
@@ -77,8 +77,10 @@ export default function Home() {
     if (!loadMore) setIsLoading(true);
     setError('');
     try {
+      const activeSrc = currentSource === 'cakhiatv' ? 'cakhiatv' : 'colatv';
       const params = new URLSearchParams({ 
         filter: 'all', 
+        source: activeSrc,
         loadMore: loadMore ? 'true' : 'false'
       });
       const res = await fetch(`${BE_URL}/api/matches?${params}`);
@@ -137,7 +139,7 @@ export default function Home() {
     } finally {
       if (!loadMore) setIsLoading(false);
     }
-  }, []);
+  }, [currentSource]);
 
   useEffect(() => {
     fetchAllMatches(false);
@@ -214,9 +216,10 @@ export default function Home() {
           }
 
           if (!activeServer && data.servers && data.servers.length > 0) {
-            let priorityList: string[] = ['gialang'];
+            let priorityList: string[] = ['gialang', 'hiro', 'roy', 'johan', 'max'];
             try {
-              const saved = localStorage.getItem('h5n1_commentator_priority');
+              const srcKey = `h5n1_commentator_priority_${activeMatch.source || currentSource}`;
+              const saved = localStorage.getItem(srcKey) || localStorage.getItem('h5n1_commentator_priority');
               if (saved) {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) priorityList = parsed;
@@ -245,6 +248,12 @@ export default function Home() {
             }
           }
 
+          if (data.source === 'cakhiatv' && data.flvUrl) {
+            setStreamUrl(data.flvUrl);
+            setLoadingStreamMsg('');
+            return;
+          }
+
           const refParam = data.iframeSrc ? `&ref=${encodeURIComponent(data.iframeSrc)}` : '';
           const proxyBase = process.env.NEXT_PUBLIC_PROXY_URL || `${BE_URL}/api/proxy`;
           const sep = proxyBase.includes('?') ? '&' : '?';
@@ -258,7 +267,7 @@ export default function Home() {
       timers.forEach(clearTimeout);
     })();
     return () => { mounted = false; timers.forEach(clearTimeout); };
-  }, [activeMatch, activeServer]);
+  }, [activeMatch, activeServer, currentSource]);
 
   const handleMatchSelect = (match: Match) => {
     setActiveMatch(match);
@@ -280,14 +289,32 @@ export default function Home() {
     );
   }, [matches, currentSource]);
 
-  // Timestamps for Today & Tomorrow filters
-  const { startToday, endToday, startTomorrow, endTomorrow } = useMemo(() => {
-    const today = new Date();
-    const sToday = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
+  // Timestamps for Today & Tomorrow filters (Vietnam GMT+7)
+  const { startToday, endToday, startTomorrow, endTomorrow, todayDateStr, tomorrowDateStr } = useMemo(() => {
+    const now = new Date();
+    const todayInVn = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+    const sToday = Math.floor(new Date(todayInVn.getFullYear(), todayInVn.getMonth(), todayInVn.getDate()).getTime() / 1000);
     const eToday = sToday + 86400;
     const sTomorrow = eToday;
     const eTomorrow = sTomorrow + 86400;
-    return { startToday: sToday, endToday: eToday, startTomorrow: sTomorrow, endTomorrow: eTomorrow };
+
+    const vnDay = String(todayInVn.getDate()).padStart(2, '0');
+    const vnMonth = String(todayInVn.getMonth() + 1).padStart(2, '0');
+    const tStr = `${vnDay}/${vnMonth}`;
+
+    const tmwInVn = new Date((sTomorrow + 3600) * 1000);
+    const tmwDay = String(tmwInVn.getDate()).padStart(2, '0');
+    const tmwMonth = String(tmwInVn.getMonth() + 1).padStart(2, '0');
+    const tmwStr = `${tmwDay}/${tmwMonth}`;
+
+    return { 
+      startToday: sToday, 
+      endToday: eToday, 
+      startTomorrow: sTomorrow, 
+      endTomorrow: eTomorrow,
+      todayDateStr: tStr,
+      tomorrowDateStr: tmwStr
+    };
   }, []);
 
   // Filtered lists
@@ -296,25 +323,40 @@ export default function Home() {
   }, [matches]);
 
   const hotMatches = useMemo(() => {
-    return matches.filter(m => m.isHot || m.isSuperHot);
+    return matches.filter(m => m.isHot || m.isSuperHot || m.status === 'Trực tiếp');
+  }, [matches]);
+
+  const blvMatches = useMemo(() => {
+    return matches.filter(m => Boolean(m.commentator));
   }, [matches]);
 
   const todayMatches = useMemo(() => {
-    return matches.filter(m => (m as any).startTime >= startToday && (m as any).startTime < endToday);
-  }, [matches, startToday, endToday]);
+    return matches.filter(m => {
+      if (m.startTime && m.startTime > 0) {
+        return m.startTime >= startToday && m.startTime < endToday;
+      }
+      return m.date && m.date.includes(todayDateStr);
+    });
+  }, [matches, startToday, endToday, todayDateStr]);
 
   const tomorrowMatches = useMemo(() => {
-    return matches.filter(m => (m as any).startTime >= startTomorrow && (m as any).startTime < endTomorrow);
-  }, [matches, startTomorrow, endTomorrow]);
+    return matches.filter(m => {
+      if (m.startTime && m.startTime > 0) {
+        return m.startTime >= startTomorrow && m.startTime < endTomorrow;
+      }
+      return m.date && m.date.includes(tomorrowDateStr);
+    });
+  }, [matches, startTomorrow, endTomorrow, tomorrowDateStr]);
 
   // Tab counts
   const tabCounts = useMemo(() => ({
     all: matches.length,
     live: liveMatches.length,
     hot: hotMatches.length,
+    blv: blvMatches.length,
     today: todayMatches.length,
     tomorrow: tomorrowMatches.length,
-  }), [matches.length, liveMatches.length, hotMatches.length, todayMatches.length, tomorrowMatches.length]);
+  }), [matches.length, liveMatches.length, hotMatches.length, blvMatches.length, todayMatches.length, tomorrowMatches.length]);
 
   // Active displayed matches depending on filter
   const currentTabMatches = useMemo(() => {
@@ -323,6 +365,8 @@ export default function Home() {
       list = liveMatches;
     } else if (activeFilter === 'hot') {
       list = hotMatches;
+    } else if (activeFilter === 'blv') {
+      list = blvMatches;
     } else if (activeFilter === 'today') {
       list = todayMatches;
     } else if (activeFilter === 'tomorrow') {
@@ -331,7 +375,7 @@ export default function Home() {
       list = matches;
     }
     return list;
-  }, [activeFilter, matches, liveMatches, hotMatches, todayMatches, tomorrowMatches]);
+  }, [activeFilter, matches, liveMatches, hotMatches, blvMatches, todayMatches, tomorrowMatches]);
 
   const visibleMatches = useMemo(() => {
     return currentTabMatches.slice(0, visibleCount);
@@ -565,7 +609,7 @@ export default function Home() {
                       {/* Tab: Tất cả */}
                       <button
                         onClick={() => setActiveFilter('all')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
                           activeFilter === 'all'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/20'
                             : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'
@@ -581,7 +625,7 @@ export default function Home() {
                       {/* Tab: Live */}
                       <button
                         onClick={() => setActiveFilter('live')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                        className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
                           activeFilter === 'live'
                             ? 'bg-red-600 text-white shadow-red-500/20 ring-2 ring-red-500/40'
                             : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'
@@ -600,7 +644,7 @@ export default function Home() {
                       {/* Tab: Trận hot */}
                       <button
                         onClick={() => setActiveFilter('hot')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
                           activeFilter === 'hot'
                             ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-orange-500/20'
                             : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'
@@ -613,10 +657,26 @@ export default function Home() {
                         </span>
                       </button>
 
+                      {/* Tab: BLV / BLV Cakhia */}
+                      <button
+                        onClick={() => setActiveFilter('blv')}
+                        className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                          activeFilter === 'blv'
+                            ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-purple-500/20'
+                            : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'
+                        }`}
+                      >
+                        <Headphones size={15} className={activeFilter === 'blv' ? 'text-white' : 'text-purple-500'} />
+                        <span>{currentSource === 'cakhiatv' ? 'BLV Cakhia' : 'Có BLV'}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeFilter === 'blv' ? 'bg-white/20 text-white' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
+                          {tabCounts.blv}
+                        </span>
+                      </button>
+
                       {/* Tab: Hôm nay */}
                       <button
                         onClick={() => setActiveFilter('today')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
                           activeFilter === 'today'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/20'
                             : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'
@@ -632,7 +692,7 @@ export default function Home() {
                       {/* Tab: Ngày mai */}
                       <button
                         onClick={() => setActiveFilter('tomorrow')}
-                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
+                        className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
                           activeFilter === 'tomorrow'
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-emerald-500/20'
                             : 'bg-surface hover:bg-[var(--header-btn-hover)] text-foreground/70 border border-border/60 hover:text-foreground'

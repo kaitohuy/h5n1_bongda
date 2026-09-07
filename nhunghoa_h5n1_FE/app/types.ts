@@ -29,4 +29,4 @@ export interface LeagueInfo {
     count: number;
 }
 
-export type FilterTab = 'live' | 'hot' | 'today' | 'tomorrow' | 'all';
+export type FilterTab = 'live' | 'hot' | 'blv' | 'today' | 'tomorrow' | 'all';

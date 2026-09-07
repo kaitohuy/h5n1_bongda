@@ -9,9 +9,14 @@ const http = require('http');
 const { 
     fetchMatches: fetchColatvMatches, 
     extractStream: extractColatvStream, 
-    fetchCommentators,
+    fetchCommentators: fetchColatvCommentators,
     getScoreData 
 } = require('./scraper_colatv');
+const { 
+    fetchCakhiaMatches, 
+    fetchCakhiaCommentators,
+    extractCakhiaStream 
+} = require('./scraper_cakhiatv');
 const { getStandings, clearCache: clearBongdaCache, fetchDetailedStandings } = require('./scraper_bongda24h');
 
 const router = Router();
@@ -25,10 +30,17 @@ router.get(['/health', '/healthz', '/api/health'], (_req, res) => {
 });
 
 // ── Commentators Listing & Ranking ────────────────────────────────────────────
-router.get('/api/commentators', async (_req, res) => {
+// GET /api/commentators?source=colatv|cakhiatv
+router.get('/api/commentators', async (req, res) => {
     try {
-        const commentators = await fetchCommentators();
-        return res.json({ success: true, commentators });
+        const { source = 'colatv' } = req.query;
+        let commentators = [];
+        if (source === 'cakhiatv') {
+            commentators = await fetchCakhiaCommentators();
+        } else {
+            commentators = await fetchColatvCommentators();
+        }
+        return res.json({ success: true, commentators, source });
     } catch (err) {
         return res.status(500).json({ success: false, error: err.message });
     }
@@ -74,34 +86,46 @@ router.get('/api/clear-cache', (_req, res) => {
 });
 
 // ── Match listing ─────────────────────────────────────────────────────────────
-// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&loadMore=true|false
+// GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&source=colatv|cakhiatv
 router.get('/api/matches', async (req, res) => {
-    const { filter = 'all', league = '' } = req.query;
+    const { filter = 'all', league = '', source = 'colatv' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
 
-    console.log(`[matches] filter=${safeFilter} league=${league || 'all'}`);
+    console.log(`[matches] source=${source} filter=${safeFilter} league=${league || 'all'}`);
     const start = Date.now();
 
     try {
-        const allMatches = await fetchColatvMatches();
+        let allMatches = [];
+        if (source === 'cakhiatv') {
+            allMatches = await fetchCakhiaMatches();
+        } else {
+            allMatches = await fetchColatvMatches();
+        }
+
         let matches = allMatches;
 
         if (safeFilter === 'live') {
-            matches = allMatches.filter(m => m.status === 1 || m.isLive);
+            matches = allMatches.filter(m => m.status === 1 || m.status === 'Trực tiếp' || m.isLive);
         } else if (safeFilter === 'hot') {
-            matches = allMatches.filter(m => m.isHot || m.isSuperHot || m.status === 1);
+            matches = allMatches.filter(m => m.isHot || m.isSuperHot || m.status === 1 || m.status === 'Trực tiếp');
         } else if (safeFilter === 'today') {
             const today = new Date();
             const startOfDay = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
             const endOfDay = startOfDay + 86400;
-            matches = allMatches.filter(m => m.startTime >= startOfDay && m.startTime < endOfDay);
+            matches = allMatches.filter(m => {
+                if (m.startTime) return m.startTime >= startOfDay && m.startTime < endOfDay;
+                return true;
+            });
         } else if (safeFilter === 'tomorrow') {
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             const startOfDay = Math.floor(new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate()).getTime() / 1000);
             const endOfDay = startOfDay + 86400;
-            matches = allMatches.filter(m => m.startTime >= startOfDay && m.startTime < endOfDay);
+            matches = allMatches.filter(m => {
+                if (m.startTime) return m.startTime >= startOfDay && m.startTime < endOfDay;
+                return false;
+            });
         }
 
         if (league && league !== 'all') {
@@ -123,11 +147,11 @@ router.get('/api/matches', async (req, res) => {
         const leagues = Array.from(leaguesMap.values());
 
         const elapsed = Date.now() - start;
-        console.log(`[matches] ✓ ${matches.length} matches returned in ${elapsed}ms`);
+        console.log(`[matches] ✓ ${matches.length} matches returned in ${elapsed}ms (source: ${source})`);
 
         return res.json({ 
             success: true, 
-            source: 'colatv', 
+            source, 
             matches, 
             hasMore: false, 
             leagues, 
@@ -207,23 +231,39 @@ router.get('/api/match/:id/score-data/:type', async (req, res) => {
 });
 
 // ── M3U8 stream extractor ─────────────────────────────────────────────────────
-// GET /api/extract?url={slug}&server={serverLabel}
+// GET /api/extract?url={slug}&server={serverLabel}&source=colatv|cakhiatv
 router.get('/api/extract', async (req, res) => {
-    const { url, server = '' } = req.query;
+    const { url, server = '', source = '' } = req.query;
     if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
 
-    let slug = url;
-    try {
-        const parsed = new URL(url);
-        slug = parsed.pathname.split('/').filter(Boolean).pop() || url;
-    } catch {
-        // Already slug
-    }
-
-    console.log(`[extract] Extracting stream for slug: ${slug} (server: ${server})`);
+    const isCakhia = source === 'cakhiatv' || url.includes('cakhiazaa') || url.includes('/truc-tiep/');
+    console.log(`[extract] Extracting stream for: ${url} (server: ${server}, isCakhia: ${isCakhia})`);
     const start = Date.now();
 
     try {
+        if (isCakhia) {
+            const result = await extractCakhiaStream(url, server);
+            const elapsed = Date.now() - start;
+            console.log(`[extract] ✓ Found Cakhia stream in ${elapsed}ms → ${result.streamUrl}`);
+            return res.json({
+                success: true,
+                streamUrl: result.streamUrl,
+                flvUrl: result.flvUrl || '',
+                servers: result.servers || [],
+                selectedServer: result.selectedServer || '',
+                source: 'cakhiatv',
+                elapsedMs: elapsed
+            });
+        }
+
+        let slug = url;
+        try {
+            const parsed = new URL(url);
+            slug = parsed.pathname.split('/').filter(Boolean).pop() || url;
+        } catch {
+            // Already slug
+        }
+
         const result = await extractColatvStream(slug, server);
         const elapsed = Date.now() - start;
         console.log(`[extract] ✓ Found stream in ${elapsed}ms → ${result.streamUrl}`);
@@ -262,12 +302,13 @@ router.get('/api/proxy', (req, res) => {
         return res.status(400).send('Invalid url param'); 
     }
 
-    // Security: allow known stream hosts including ColaTV & VTVgo & FPT CDNs
+    // Security: allow known stream hosts including ColaTV, CakhiaTV & VTVgo & FPT CDNs
     const ALLOWED_HOSTS = [
         'ftlcbx.com', 'meung.app', 'miekgo.app', 'gvapi.cc',
         'vtvdigital.vn', 'vtvgo.vn', 'vcdn.vn', 'vtv.vn',
         'fptplay53.net', 'fptplay.net', 'canthotv.vn',
         'procdnlive.com', 'livecdnem.com', 'cdnfastest.com',
+        'domaincdn.cc', 'domainkqt.cc', 'hexvaridstreamnode.com', 'cakhiazaa.tv', 'sportpulseapiz.com',
         'livecdn', 'hlslive', 'livestream', 'cdn.', '.cdn'
     ];
     const allowed = ALLOWED_HOSTS.some(h => parsedUrl.hostname.includes(h));
@@ -284,6 +325,9 @@ router.get('/api/proxy', (req, res) => {
     } else if (parsedUrl.hostname.includes('fptplay53.net') || parsedUrl.hostname.includes('fptplay.net') || parsedUrl.hostname.includes('fptplay.vn')) {
         referer = 'https://fptplay.vn/';
         origin = 'https://fptplay.vn';
+    } else if (parsedUrl.hostname.includes('domaincdn.cc') || parsedUrl.hostname.includes('domainkqt.cc') || parsedUrl.hostname.includes('hexvaridstreamnode.com') || parsedUrl.hostname.includes('cakhia')) {
+        referer = 'https://cakhiazaa.tv/';
+        origin = 'https://cakhiazaa.tv';
     }
 
     const options = {

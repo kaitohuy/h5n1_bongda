@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ArrowUp, ArrowDown, RotateCcw, Check, Sparkles, Search, GripVertical, Globe, ChevronDown, Tv } from 'lucide-react';
+import { X, ArrowUp, ArrowDown, RotateCcw, Check, Sparkles, Search, GripVertical, Globe, Tv, Radio } from 'lucide-react';
 
 export interface CommentatorItem {
     id: string;
@@ -12,6 +12,7 @@ export interface CommentatorItem {
     fansCount?: number;
     visitHistory?: number;
     matchCount?: number;
+    source?: string;
 }
 
 interface CommentatorSettingsModalProps {
@@ -48,9 +49,8 @@ export default function CommentatorSettingsModal({
     const [searchTerm, setSearchTerm] = useState('');
     const [savedNotice, setSavedNotice] = useState(false);
     
-    // Multi-source dropdown state
+    // Default source state
     const [selectedSource, setSelectedSource] = useState(currentSource);
-    const [isSourceDropdownOpen, setIsSourceDropdownOpen] = useState(false);
 
     useEffect(() => {
         setSelectedSource(currentSource);
@@ -66,16 +66,20 @@ export default function CommentatorSettingsModal({
         commentatorsRef.current = commentators;
     }, [commentators]);
 
-    // Fetch master list from Backend on open
+    // Fetch master list from Backend when modal opens or selectedSource changes
     useEffect(() => {
         if (!isOpen) return;
+        if (selectedSource === 'vtv6') {
+            setCommentators([]);
+            return;
+        }
 
         let mounted = true;
         setIsLoading(true);
 
         (async () => {
             try {
-                const res = await fetch(`${BE_URL}/api/commentators`);
+                const res = await fetch(`${BE_URL}/api/commentators?source=${selectedSource}`);
                 const data = await res.json();
                 if (data.success && data.commentators) {
                     const fetchedList: CommentatorItem[] = data.commentators;
@@ -84,7 +88,12 @@ export default function CommentatorSettingsModal({
                     setDefaultList(fetchedList);
 
                     // Check saved order from localStorage
-                    const savedPriorityJson = localStorage.getItem('h5n1_commentator_priority');
+                    const storageKey = `h5n1_commentator_priority_${selectedSource}`;
+                    let savedPriorityJson = localStorage.getItem(storageKey);
+                    if (!savedPriorityJson && selectedSource === 'colatv') {
+                        savedPriorityJson = localStorage.getItem('h5n1_commentator_priority');
+                    }
+
                     if (savedPriorityJson) {
                         try {
                             const savedNorms: string[] = JSON.parse(savedPriorityJson);
@@ -121,15 +130,16 @@ export default function CommentatorSettingsModal({
         return () => {
             mounted = false;
         };
-    }, [isOpen, BE_URL]);
+    }, [isOpen, selectedSource, BE_URL]);
 
     if (!isOpen) return null;
 
     // Auto-save logic
     const saveToLocalStorage = (list: CommentatorItem[], src: string) => {
         localStorage.setItem('h5n1_default_source', src);
-        if (list.length > 0) {
+        if (list.length > 0 && src !== 'vtv6') {
             const orderNorms = list.map(c => c.norm);
+            localStorage.setItem(`h5n1_commentator_priority_${src}`, JSON.stringify(orderNorms));
             localStorage.setItem('h5n1_commentator_priority', JSON.stringify(orderNorms));
         }
         if (onSaveSuccess) onSaveSuccess();
@@ -206,6 +216,8 @@ export default function CommentatorSettingsModal({
         setCommentators(defaultList);
         setSelectedSource('vtv6');
         localStorage.removeItem('h5n1_commentator_priority');
+        localStorage.removeItem('h5n1_commentator_priority_colatv');
+        localStorage.removeItem('h5n1_commentator_priority_cakhiatv');
         localStorage.setItem('h5n1_default_source', 'vtv6');
         if (onSourceChange) onSourceChange('vtv6');
         setSavedNotice(true);
@@ -223,7 +235,7 @@ export default function CommentatorSettingsModal({
         setTimeout(() => {
             setSavedNotice(false);
             onClose();
-        }, 600);
+        }, 500);
     };
 
     // Filter by search
@@ -234,8 +246,27 @@ export default function CommentatorSettingsModal({
     });
 
     const AVAILABLE_SOURCES = [
-        { id: 'vtv6', name: 'VTV6 (Mặc định)', desc: 'Kênh truyền hình trực tiếp 24/7' },
-        { id: 'colatv', name: 'ColaTV', desc: '74+ Trận đấu, 19 BLV hoạt động' },
+        { 
+            id: 'vtv6', 
+            name: 'VTV6 (Mặc định)', 
+            desc: 'Kênh truyền hình trực tiếp 24/7',
+            badge: '🔴 Trực Tiếp',
+            color: 'from-red-600 to-rose-500' 
+        },
+        { 
+            id: 'colatv', 
+            name: 'ColaTV', 
+            desc: 'Trực tiếp bóng đá, 19+ BLV',
+            badge: '🟢 Đa Dạng',
+            color: 'from-emerald-500 to-teal-500' 
+        },
+        { 
+            id: 'cakhiatv', 
+            name: 'CakhiaTV', 
+            desc: '495+ Trận đấu, 24+ BLV Cakhia',
+            badge: '🟡 Siêu Nhiều',
+            color: 'from-amber-500 to-orange-500' 
+        },
     ];
 
     return (
@@ -244,7 +275,7 @@ export default function CommentatorSettingsModal({
             onClick={handleCloseWithAutoSave}
         >
             <div 
-                className="relative w-full max-w-xl bg-[var(--surface-theme,white)] dark:bg-slate-900 border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+                className="relative w-full max-w-xl bg-[var(--surface-theme,white)] dark:bg-slate-900 border border-border/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 duration-200"
                 onClick={e => e.stopPropagation()}
             >
                 {/* ── Modal Header ── */}
@@ -255,10 +286,10 @@ export default function CommentatorSettingsModal({
                         </div>
                         <div>
                             <h3 className="text-base sm:text-lg font-black tracking-tight text-foreground">
-                                Cài Đặt Nguồn Phát & BLV
+                                Cài Đặt Nguồn Mặc Định & BLV
                             </h3>
                             <p className="text-xs text-foreground/60">
-                                Chọn nguồn phát mặc định và sắp xếp thứ tự BLV yêu thích
+                                Chọn nguồn phát mặc định khi mở web và sắp xếp thứ tự BLV yêu thích
                             </p>
                         </div>
                     </div>
@@ -271,87 +302,89 @@ export default function CommentatorSettingsModal({
                     </button>
                 </div>
 
-                {/* ── Source Dropdown Bar ── */}
-                <div className="px-6 pt-3 pb-1 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 w-full">
-                        <span className="text-xs font-bold text-foreground/60 shrink-0 flex items-center gap-1.5">
+                {/* ── Section 1: Default Source Selection Cards ── */}
+                <div className="px-6 pt-4 pb-2 border-b border-border/30 bg-slate-50/30 dark:bg-slate-800/20">
+                    <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-xs font-black uppercase tracking-wider text-foreground/70 flex items-center gap-1.5">
                             <Globe size={14} className="text-emerald-500" />
-                            Nguồn phát:
+                            Nguồn phát mặc định khi mở web:
                         </span>
-                        <div className="relative flex-1">
-                            <button
-                                onClick={() => setIsSourceDropdownOpen(!isSourceDropdownOpen)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border border-border/60 text-xs font-extrabold text-foreground hover:border-emerald-500/60 transition-all shadow-sm"
-                            >
-                                <span className="flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                    {AVAILABLE_SOURCES.find(s => s.id === selectedSource)?.name || 'VTV6'}
-                                </span>
-                                <ChevronDown size={14} className={`transition-transform duration-200 ${isSourceDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                        <span className="text-[10px] text-foreground/50 italic">Tự động lưu</span>
+                    </div>
 
-                            {isSourceDropdownOpen && (
-                                <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark:bg-slate-900 border border-border rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-                                    {AVAILABLE_SOURCES.map(src => (
-                                        <button
-                                            key={src.id}
-                                            onClick={() => {
-                                                setSelectedSource(src.id);
-                                                setIsSourceDropdownOpen(false);
-                                                if (onSourceChange) onSourceChange(src.id);
-                                            }}
-                                            className={`w-full flex items-center justify-between px-3.5 py-2.5 text-xs text-left transition-colors ${
-                                                selectedSource === src.id 
-                                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-extrabold' 
-                                                    : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-foreground/80'
-                                            }`}
-                                        >
-                                            <div>
-                                                <div className="font-bold">{src.name}</div>
-                                                <div className="text-[10px] text-foreground/45">{src.desc}</div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {AVAILABLE_SOURCES.map(src => {
+                            const isSelected = selectedSource === src.id;
+                            return (
+                                <button
+                                    key={src.id}
+                                    onClick={() => {
+                                        setSelectedSource(src.id);
+                                        localStorage.setItem('h5n1_default_source', src.id);
+                                        if (onSourceChange) onSourceChange(src.id);
+                                    }}
+                                    className={`relative flex flex-col items-start p-2.5 sm:p-3 rounded-xl border text-left transition-all duration-150 ${
+                                        isSelected
+                                            ? 'bg-emerald-500/10 dark:bg-emerald-500/15 border-emerald-500 shadow-sm ring-2 ring-emerald-500/30'
+                                            : 'bg-white dark:bg-slate-800/60 border-border/50 hover:border-border hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between w-full mb-1">
+                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-200/70 dark:bg-slate-700/60 text-foreground/70">
+                                            {src.badge}
+                                        </span>
+                                        {isSelected ? (
+                                            <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px]">
+                                                <Check size={11} strokeWidth={3} />
                                             </div>
-                                            {selectedSource === src.id && <Check size={14} />}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                        ) : (
+                                            <div className="w-4 h-4 rounded-full border border-border/80" />
+                                        )}
+                                    </div>
+                                    <div className="font-black text-xs sm:text-sm text-foreground">{src.name}</div>
+                                    <div className="text-[10px] text-foreground/50 line-clamp-1 mt-0.5">{src.desc}</div>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                {/* ── Content View based on Source ── */}
+                {/* ── Section 2: Commentators or Info Content ── */}
                 {selectedSource === 'vtv6' ? (
-                    <div className="p-6 flex flex-col items-center justify-center text-center gap-3 my-4">
-                        <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20 flex items-center justify-center shadow-inner">
+                    <div className="p-8 flex flex-col items-center justify-center text-center gap-3 my-auto">
+                        <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-500 border border-red-500/20 flex items-center justify-center shadow-inner animate-pulse">
                             <Tv size={32} />
                         </div>
-                        <h4 className="text-base font-extrabold text-foreground">Kênh VTV6 (Trực Tiếp Thể Thao)</h4>
+                        <h4 className="text-base font-black text-foreground">Kênh VTV6 (Trực Tiếp Thể Thao 24/7)</h4>
                         <p className="text-xs text-foreground/60 max-w-md leading-relaxed">
-                            Kênh truyền hình trực tiếp thể thao 24/7 từ Đài Truyền Hình Việt Nam. Luồng phát trực tiếp gốc của VTV được phát trực tiếp tại trang chủ mà không sử dụng BLV riêng.
+                            Kênh truyền hình trực tiếp thể thao & giải trí từ Đài Truyền Hình Việt Nam. Luồng phát trực tiếp gốc của VTV phát trực tiếp tại trang chủ không có danh sách BLV riêng.
                         </p>
                     </div>
                 ) : (
                     <>
-                        {/* ── Search Bar ── */}
-                        <div className="px-6 pt-2 pb-2">
-                            <div className="relative">
+                        {/* ── Search Bar & List Header ── */}
+                        <div className="px-6 pt-3 pb-2 flex items-center justify-between gap-3">
+                            <div className="relative flex-1">
                                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" />
                                 <input
                                     type="text"
-                                    placeholder="Tìm kiếm BLV (ví dụ: Già Làng, Revive, Sting...)"
+                                    placeholder={`Tìm kiếm BLV ${selectedSource === 'cakhiatv' ? 'Cakhia' : 'Cola'} (ROY, Già Làng, HIRO...)`}
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-border/40 text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                 />
                             </div>
+                            <span className="text-xs font-bold text-foreground/50 shrink-0">
+                                {commentators.length} BLV
+                            </span>
                         </div>
 
-                        {/* ── Commentators List (with Drag & Drop & Tier-List Styling) ── */}
+                        {/* ── Commentators List (Drag & Drop & Tier-List Styling) ── */}
                         <div className="flex-1 overflow-y-auto px-6 py-2 space-y-2 no-scrollbar">
                             {isLoading ? (
                                 <div className="py-12 flex flex-col items-center justify-center text-foreground/50 gap-2">
                                     <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-xs">Đang tải danh sách BLV...</span>
+                                    <span className="text-xs">Đang tải danh sách BLV {selectedSource === 'cakhiatv' ? 'CakhiaTV' : 'ColaTV'}...</span>
                                 </div>
                             ) : filteredCommentators.length === 0 ? (
                                 <div className="py-8 text-center text-foreground/40 text-sm">
@@ -459,13 +492,16 @@ export default function CommentatorSettingsModal({
                                                         }`}>
                                                             {c.name}
                                                         </span>
-                                                        {c.norm === 'gialang' && (
+                                                        {c.norm === 'gialang' && selectedSource === 'colatv' && (
                                                             <span className="px-1.5 py-0.5 text-[9px] font-bold rounded bg-red-500/10 text-red-500 border border-red-500/20 shrink-0">
                                                                 Mặc định
                                                             </span>
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-3 text-[11px] text-foreground/50">
+                                                        {c.matchCount !== undefined && c.matchCount > 0 && (
+                                                            <span>{c.matchCount} trận đấu</span>
+                                                        )}
                                                         {c.fansCount !== undefined && c.fansCount > 0 && (
                                                             <span>{c.fansCount} fans</span>
                                                         )}
