@@ -7,9 +7,9 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const { prewarmCache: prewarmColatvCache } = require('./scraper_colatv');
+const { prewarmCakhiaCache } = require('./scraper_cakhiatv');
 const routes = require('./routes');
-const { prewarmCache } = require('./scraper_colatv');
-
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -67,7 +67,10 @@ app.listen(PORT, async () => {
     console.log(`   Allowed origins: ${allowedOrigins.join(', ')}`);
     console.log(`   Endpoints:`);
     console.log(`     GET /health`);
-    console.log(`     GET /api/extract?url=<slug>\n`);
+    console.log(`     GET /api/matches?source=cakhiatv|colatv`);
+    console.log(`     GET /api/commentators?source=cakhiatv|colatv\n`);
 
-    prewarmCache();
+    prewarmColatvCache();
+    prewarmCakhiaCache();
 });
+

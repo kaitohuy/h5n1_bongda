@@ -32,6 +32,7 @@ router.get(['/health', '/healthz', '/api/health'], (_req, res) => {
 // ── Commentators Listing & Ranking ────────────────────────────────────────────
 // GET /api/commentators?source=colatv|cakhiatv
 router.get('/api/commentators', async (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     try {
         const { source = 'colatv' } = req.query;
         let commentators = [];
@@ -48,6 +49,7 @@ router.get('/api/commentators', async (req, res) => {
 
 // ── VTV6 Dynamic Live Streams ──────────────────────────────────────────────────
 router.get('/api/vtv6', (_req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
     const servers = [
         {
             id: 'vtv6_hd',
@@ -88,6 +90,7 @@ router.get('/api/clear-cache', (_req, res) => {
 // ── Match listing ─────────────────────────────────────────────────────────────
 // GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&source=colatv|cakhiatv
 router.get('/api/matches', async (req, res) => {
+    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     const { filter = 'all', league = '', source = 'colatv' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';

@@ -35,6 +35,38 @@ export function normalizeCommentator(str: string): string {
         .trim();
 }
 
+// Pre-seeded master list for instant 0ms initial display
+const STATIC_MASTER_CAKHIA = [
+    'HIRO', 'TONI', 'JOHAN', 'ROY', 'RIO', 'BEE', 'BRADY', 'ZANE', 
+    'XMEN', 'RAVEN', 'OLER', 'LOGAN', 'KEN', 'ASTRA', 'NEMO', 'POLO', 
+    'SILVA', 'MAX', 'FILIP', 'TOM', 'NICK', 'JEAN', 'ALAN', 'FELIX'
+].map(name => ({
+    id: `cakhia_${normalizeCommentator(name)}`,
+    name: `BLV ${name}`,
+    cleanName: name,
+    norm: normalizeCommentator(name),
+    userImage: '',
+    fansCount: 0,
+    visitHistory: 0,
+    matchCount: 0,
+    source: 'cakhiatv'
+}));
+
+const STATIC_MASTER_COLA = [
+    'Già Làng', 'Revive', 'Sting', 'Cà Rốt', 'Leo', 'Bắp', 'Bún', 
+    'Sơn Đen', 'Hải Quay Xe', 'Mỳ Tôm', 'Thỏ Trắng', 'Chanh', 'Bơ', 'Táo', 'Khế'
+].map(name => ({
+    id: `cola_${normalizeCommentator(name)}`,
+    name: `BLV ${name}`,
+    cleanName: name,
+    norm: normalizeCommentator(name),
+    userImage: '',
+    fansCount: 0,
+    visitHistory: 0,
+    matchCount: 0,
+    source: 'colatv'
+}));
+
 export default function CommentatorSettingsModal({ 
     isOpen, 
     onClose, 
@@ -75,55 +107,66 @@ export default function CommentatorSettingsModal({
         }
 
         let mounted = true;
-        setIsLoading(true);
 
+        // 1. Instant Cache / Pre-seeded initial display (Zero latency)
+        let initialList = selectedSource === 'cakhiatv' ? STATIC_MASTER_CAKHIA : STATIC_MASTER_COLA;
+        try {
+            const cachedMasterJson = localStorage.getItem(`h5n1_cached_commentators_${selectedSource}`);
+            if (cachedMasterJson) {
+                const parsed = JSON.parse(cachedMasterJson);
+                if (Array.isArray(parsed) && parsed.length > 0) initialList = parsed;
+            }
+        } catch {}
+
+        const storageKey = `h5n1_commentator_priority_${selectedSource}`;
+        let savedPriorityJson = localStorage.getItem(storageKey);
+        if (!savedPriorityJson && selectedSource === 'colatv') {
+            savedPriorityJson = localStorage.getItem('h5n1_commentator_priority');
+        }
+
+        const applyPriority = (baseList: CommentatorItem[]) => {
+            if (savedPriorityJson) {
+                try {
+                    const savedNorms: string[] = JSON.parse(savedPriorityJson);
+                    const ordered: CommentatorItem[] = [];
+                    const remaining = [...baseList];
+
+                    savedNorms.forEach(norm => {
+                        const idx = remaining.findIndex(c => c.norm === norm);
+                        if (idx !== -1) {
+                            ordered.push(remaining[idx]);
+                            remaining.splice(idx, 1);
+                        }
+                    });
+
+                    return [...ordered, ...remaining];
+                } catch {}
+            }
+            return baseList;
+        };
+
+        const initialOrdered = applyPriority(initialList);
+        setCommentators(initialOrdered);
+        commentatorsRef.current = initialOrdered;
+        setDefaultList(initialList);
+
+        // 2. Background fresh fetch from backend
         (async () => {
             try {
                 const res = await fetch(`${BE_URL}/api/commentators?source=${selectedSource}`);
                 const data = await res.json();
-                if (data.success && data.commentators) {
+                if (data.success && data.commentators && Array.isArray(data.commentators) && data.commentators.length > 0) {
                     const fetchedList: CommentatorItem[] = data.commentators;
                     if (!mounted) return;
 
+                    localStorage.setItem(`h5n1_cached_commentators_${selectedSource}`, JSON.stringify(fetchedList));
                     setDefaultList(fetchedList);
-
-                    // Check saved order from localStorage
-                    const storageKey = `h5n1_commentator_priority_${selectedSource}`;
-                    let savedPriorityJson = localStorage.getItem(storageKey);
-                    if (!savedPriorityJson && selectedSource === 'colatv') {
-                        savedPriorityJson = localStorage.getItem('h5n1_commentator_priority');
-                    }
-
-                    if (savedPriorityJson) {
-                        try {
-                            const savedNorms: string[] = JSON.parse(savedPriorityJson);
-                            const ordered: CommentatorItem[] = [];
-                            const remaining = [...fetchedList];
-
-                            savedNorms.forEach(norm => {
-                                const idx = remaining.findIndex(c => c.norm === norm);
-                                if (idx !== -1) {
-                                    ordered.push(remaining[idx]);
-                                    remaining.splice(idx, 1);
-                                }
-                            });
-
-                            const finalList = [...ordered, ...remaining];
-                            setCommentators(finalList);
-                            commentatorsRef.current = finalList;
-                        } catch {
-                            setCommentators(fetchedList);
-                            commentatorsRef.current = fetchedList;
-                        }
-                    } else {
-                        setCommentators(fetchedList);
-                        commentatorsRef.current = fetchedList;
-                    }
+                    const finalList = applyPriority(fetchedList);
+                    setCommentators(finalList);
+                    commentatorsRef.current = finalList;
                 }
             } catch (err) {
-                console.error('Failed to fetch commentators:', err);
-            } finally {
-                if (mounted) setIsLoading(false);
+                console.warn('Failed to refresh commentators:', err);
             }
         })();
 

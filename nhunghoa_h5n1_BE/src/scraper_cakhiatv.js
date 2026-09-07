@@ -1,17 +1,19 @@
 /**
- * scraper_cakhiatv.js — Scraper module for CakhiaTV (cakhiazaa.tv).
- * Extracts live matches, commentator rooms, and direct FLV/HLS streams.
+ * scraper_cakhiatv.js — High Performance Scraper module for CakhiaTV (cakhiazaa.tv).
+ * Features: Background Polling, Non-blocking SWR Memory Cache, Instant Master Commentators.
  */
 
 const cheerio = require('cheerio');
 
 const BASE_URL = 'https://cakhiazaa.tv';
-const CACHE_TTL_MS = 25 * 1000; // 25s cache
+const CACHE_TTL_MS = 25 * 1000; // 25s fresh cache
+const BACKGROUND_POLL_INTERVAL_MS = 30 * 1000; // 30s background poller
 
 let matchesCache = {
     data: [],
     timestamp: 0
 };
+let isFetchingInProgress = false;
 
 const COMMON_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -19,6 +21,13 @@ const COMMON_HEADERS = {
     'X-Requested-With': 'XMLHttpRequest',
     'Referer': `${BASE_URL}/`,
 };
+
+// ── Master Static Fallback Commentators (Available 0ms Instant) ───────────────
+const MASTER_CAKHIA_COMMENTATORS = [
+    'HIRO', 'TONI', 'JOHAN', 'ROY', 'RIO', 'BEE', 'BRADY', 'ZANE', 
+    'XMEN', 'RAVEN', 'OLER', 'LOGAN', 'KEN', 'ASTRA', 'NEMO', 'POLO', 
+    'SILVA', 'MAX', 'FILIP', 'TOM', 'NICK', 'JEAN', 'ALAN', 'FELIX'
+];
 
 function normalizeCommentator(str) {
     if (!str) return '';
@@ -127,18 +136,15 @@ function parseMatchesFromCheerio($, matches, seenIds) {
 }
 
 /**
- * Fetch and parse matches from CakhiaTV full matches endpoint.
- * @param {boolean} forceRefresh 
- * @returns {Promise<Array>} Standardized match list
+ * Internal worker to refresh CakhiaTV data in background.
  */
-async function fetchCakhiaMatches(forceRefresh = false) {
+async function _doFetchCakhiaMatches() {
+    if (isFetchingInProgress) return;
+    isFetchingInProgress = true;
     const now = Date.now();
-    if (!forceRefresh && matchesCache.data.length > 0 && (now - matchesCache.timestamp < CACHE_TTL_MS)) {
-        return matchesCache.data;
-    }
 
     try {
-        console.log(`[Cakhia] Fetching full matches list: ${BASE_URL}/sport/football/filter/all`);
+        console.log(`[Cakhia Worker] Background refreshing matches...`);
         const res = await fetch(`${BASE_URL}/sport/football/filter/all`, {
             headers: COMMON_HEADERS
         });
@@ -155,9 +161,7 @@ async function fetchCakhiaMatches(forceRefresh = false) {
 
         parseMatchesFromCheerio($, matches, seenIds);
 
-        // If for any reason filter/all returned 0 matches, fallback to homepage
         if (matches.length === 0) {
-            console.warn('[Cakhia] filter/all returned 0 matches, falling back to homepage...');
             const homeRes = await fetch(BASE_URL, { headers: COMMON_HEADERS });
             if (homeRes.ok) {
                 const homeHtml = await homeRes.text();
@@ -166,75 +170,108 @@ async function fetchCakhiaMatches(forceRefresh = false) {
             }
         }
 
-        console.log(`[Cakhia] Successfully parsed ${matches.length} matches.`);
-        matchesCache = {
-            data: matches,
-            timestamp: now
-        };
-        return matches;
+        if (matches.length > 0) {
+            matchesCache = {
+                data: matches,
+                timestamp: now
+            };
+            console.log(`[Cakhia Worker] ✓ Cache updated with ${matches.length} matches.`);
+        }
     } catch (err) {
-        console.error(`[Cakhia] Error fetching matches: ${err.message}`);
-        // Fallback to homepage
-        try {
-            console.log(`[Cakhia] Fallback fetching homepage: ${BASE_URL}`);
-            const homeRes = await fetch(BASE_URL, { headers: COMMON_HEADERS });
-            if (homeRes.ok) {
-                const homeHtml = await homeRes.text();
-                const $home = cheerio.load(homeHtml);
-                const matches = [];
-                const seenIds = new Set();
-                parseMatchesFromCheerio($home, matches, seenIds);
-                if (matches.length > 0) {
-                    matchesCache = { data: matches, timestamp: now };
-                    return matches;
-                }
-            }
-        } catch (fallbackErr) {
-            console.error(`[Cakhia] Fallback also failed: ${fallbackErr.message}`);
-        }
-
-        if (matchesCache.data.length > 0) return matchesCache.data;
-        throw err;
+        console.warn(`[Cakhia Worker] Background fetch error: ${err.message}`);
+    } finally {
+        isFetchingInProgress = false;
     }
 }
 
 /**
- * Fetch and extract CakhiaTV commentators list with stats.
+ * Fetch matches with Stale-While-Revalidate (Instant 0ms from RAM).
+ * @param {boolean} forceRefresh 
+ * @returns {Promise<Array>} Standardized match list
+ */
+async function fetchCakhiaMatches(forceRefresh = false) {
+    const now = Date.now();
+    const isStale = (now - matchesCache.timestamp) >= CACHE_TTL_MS;
+
+    // If cache exists and fresh, return immediately
+    if (!forceRefresh && matchesCache.data.length > 0) {
+        if (isStale) {
+            // Trigger non-blocking background revalidation
+            _doFetchCakhiaMatches().catch(() => {});
+        }
+        return matchesCache.data;
+    }
+
+    // If no cache, perform immediate fetch
+    await _doFetchCakhiaMatches();
+    return matchesCache.data;
+}
+
+/**
+ * Fetch and extract CakhiaTV commentators list (Instant 0ms).
  * @returns {Promise<Array>} Commentator list
  */
 async function fetchCakhiaCommentators() {
-    const matches = await fetchCakhiaMatches();
     const map = new Map();
 
-    matches.forEach(m => {
-        if (m.commentator) {
-            const cleanName = m.commentator.replace(/^blv\s*/i, '').trim();
-            const norm = normalizeCommentator(cleanName);
-            if (!norm) return;
-
-            if (!map.has(norm)) {
-                map.set(norm, {
-                    id: `cakhia_${norm}`,
-                    name: `BLV ${cleanName}`,
-                    cleanName: cleanName,
-                    norm: norm,
-                    userImage: '',
-                    fansCount: 0,
-                    visitHistory: 0,
-                    matchCount: 1,
-                    source: 'cakhiatv'
-                });
-            } else {
-                const item = map.get(norm);
-                item.matchCount += 1;
-            }
-        }
+    // 1. Pre-seed with master commentators
+    MASTER_CAKHIA_COMMENTATORS.forEach(cleanName => {
+        const norm = normalizeCommentator(cleanName);
+        map.set(norm, {
+            id: `cakhia_${norm}`,
+            name: `BLV ${cleanName}`,
+            cleanName: cleanName,
+            norm: norm,
+            userImage: '',
+            fansCount: 0,
+            visitHistory: 0,
+            matchCount: 0,
+            source: 'cakhiatv'
+        });
     });
+
+    // 2. Enrich with match counts from current cache
+    if (matchesCache.data.length > 0) {
+        matchesCache.data.forEach(m => {
+            if (m.commentator) {
+                const cleanName = m.commentator.replace(/^blv\s*/i, '').trim();
+                const norm = normalizeCommentator(cleanName);
+                if (!norm) return;
+
+                if (!map.has(norm)) {
+                    map.set(norm, {
+                        id: `cakhia_${norm}`,
+                        name: `BLV ${cleanName}`,
+                        cleanName: cleanName,
+                        norm: norm,
+                        userImage: '',
+                        fansCount: 0,
+                        visitHistory: 0,
+                        matchCount: 1,
+                        source: 'cakhiatv'
+                    });
+                } else {
+                    const item = map.get(norm);
+                    item.matchCount += 1;
+                }
+            }
+        });
+    }
 
     const list = Array.from(map.values());
     list.sort((a, b) => b.matchCount - a.matchCount);
 
     return list;
+}
+
+/**
+ * Prewarm and start background polling worker.
+ */
+function prewarmCakhiaCache() {
+    _doFetchCakhiaMatches().catch(() => {});
+    setInterval(() => {
+        _doFetchCakhiaMatches().catch(() => {});
+    }, BACKGROUND_POLL_INTERVAL_MS);
 }
 
 /**
@@ -359,6 +396,7 @@ module.exports = {
     fetchCakhiaMatches,
     fetchCakhiaCommentators,
     extractCakhiaStream,
-    normalizeCommentator
+    normalizeCommentator,
+    prewarmCakhiaCache
 };
 
