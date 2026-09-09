@@ -9,6 +9,7 @@ const express = require('express');
 const cors = require('cors');
 const { prewarmCache: prewarmColatvCache } = require('./scraper_colatv');
 const { prewarmCakhiaCache } = require('./scraper_cakhiatv');
+const { prewarmGavangCache } = require('./scraper_gavangtv');
 const routes = require('./routes');
 
 const app = express();
@@ -72,5 +73,6 @@ app.listen(PORT, async () => {
 
     prewarmColatvCache();
     prewarmCakhiaCache();
+    prewarmGavangCache();
 });
 

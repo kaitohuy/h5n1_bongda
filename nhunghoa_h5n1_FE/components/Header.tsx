@@ -92,6 +92,16 @@ export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceCh
                                 >
                                     <span>CakhiaTV</span>
                                 </button>
+                                <button
+                                    onClick={() => onSourceChange('gavangtv')}
+                                    className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-200 ${
+                                        currentSource === 'gavangtv'
+                                            ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-md'
+                                            : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
+                                    }`}
+                                >
+                                    <span>Gà Vàng TV</span>
+                                </button>
                             </div>
                         )}
 

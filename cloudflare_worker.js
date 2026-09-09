@@ -58,6 +58,12 @@ export default {
                 parsedTarget.hostname.includes('miekgo.app')) {
                 origin = 'https://colatv77.live';
                 referer = 'https://colatv77.live/';
+            } else if (parsedTarget.hostname.includes('zktsva.app') || 
+                       parsedTarget.hostname.includes('gvvsb.com') ||
+                       parsedTarget.hostname.includes('colatv88xi.cc') ||
+                       parsedTarget.hostname.includes('adviceme.io')) {
+                origin = 'https://gavang33.me';
+                referer = 'https://gavang33.me/';
             } else if (parsedTarget.hostname.includes('vtvdigital.vn') || 
                        parsedTarget.hostname.includes('vtvgo.vn') ||
                        parsedTarget.hostname.includes('vtv.vn')) {

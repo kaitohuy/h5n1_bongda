@@ -17,6 +17,11 @@ const {
     fetchCakhiaCommentators,
     extractCakhiaStream 
 } = require('./scraper_cakhiatv');
+const { 
+    fetchGavangMatches, 
+    fetchGavangCommentators, 
+    extractGavangStream 
+} = require('./scraper_gavangtv');
 const { getStandings, clearCache: clearBongdaCache, fetchDetailedStandings } = require('./scraper_bongda24h');
 
 const router = Router();
@@ -30,13 +35,15 @@ router.get(['/health', '/healthz', '/api/health'], (_req, res) => {
 });
 
 // ── Commentators Listing & Ranking ────────────────────────────────────────────
-// GET /api/commentators?source=colatv|cakhiatv
+// GET /api/commentators?source=colatv|cakhiatv|gavangtv
 router.get('/api/commentators', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
     try {
         const { source = 'colatv' } = req.query;
         let commentators = [];
-        if (source === 'cakhiatv') {
+        if (source === 'gavangtv' || source === 'gavang') {
+            commentators = await fetchGavangCommentators();
+        } else if (source === 'cakhiatv' || source === 'cakhia') {
             commentators = await fetchCakhiaCommentators();
         } else {
             commentators = await fetchColatvCommentators();
@@ -100,7 +107,9 @@ router.get('/api/matches', async (req, res) => {
 
     try {
         let allMatches = [];
-        if (source === 'cakhiatv') {
+        if (source === 'gavangtv' || source === 'gavang') {
+            allMatches = await fetchGavangMatches();
+        } else if (source === 'cakhiatv') {
             allMatches = await fetchCakhiaMatches();
         } else {
             allMatches = await fetchColatvMatches();
@@ -239,11 +248,28 @@ router.get('/api/extract', async (req, res) => {
     const { url, server = '', source = '' } = req.query;
     if (!url) return res.status(400).json({ success: false, error: 'Missing url param' });
 
+    const isGavang = source === 'gavangtv' || source === 'gavang' || url.includes('gavang');
     const isCakhia = source === 'cakhiatv' || url.includes('cakhiazaa') || url.includes('/truc-tiep/');
-    console.log(`[extract] Extracting stream for: ${url} (server: ${server}, isCakhia: ${isCakhia})`);
+    console.log(`[extract] Extracting stream for: ${url} (server: ${server}, isGavang: ${isGavang}, isCakhia: ${isCakhia})`);
     const start = Date.now();
 
     try {
+        if (isGavang) {
+            const result = await extractGavangStream(url, server);
+            const elapsed = Date.now() - start;
+            console.log(`[extract] ✓ Found Gà Vàng stream in ${elapsed}ms → ${result.streamUrl}`);
+            return res.json({
+                success: true,
+                streamUrl: result.streamUrl,
+                flvUrl: result.flvUrl || '',
+                servers: result.servers || [],
+                selectedServer: result.selectedServer || '',
+                matchInfo: result.matchInfo || {},
+                source: 'gavangtv',
+                elapsedMs: elapsed
+            });
+        }
+
         if (isCakhia) {
             const result = await extractCakhiaStream(url, server);
             const elapsed = Date.now() - start;
@@ -305,9 +331,10 @@ router.get('/api/proxy', (req, res) => {
         return res.status(400).send('Invalid url param'); 
     }
 
-    // Security: allow known stream hosts including ColaTV, CakhiaTV & VTVgo & FPT CDNs
+    // Security: allow known stream hosts including ColaTV, CakhiaTV, Gà Vàng TV & VTVgo & FPT CDNs
     const ALLOWED_HOSTS = [
         'ftlcbx.com', 'meung.app', 'miekgo.app', 'gvapi.cc',
+        'zktsva.app', 'gvvsb.com', 'colatv88xi.cc', 'adviceme.io', 'imgts.com',
         'vtvdigital.vn', 'vtvgo.vn', 'vcdn.vn', 'vtv.vn',
         'fptplay53.net', 'fptplay.net', 'canthotv.vn',
         'procdnlive.com', 'livecdnem.com', 'cdnfastest.com',
@@ -322,7 +349,10 @@ router.get('/api/proxy', (req, res) => {
     let referer = ref ? decodeURIComponent(ref) : 'https://colatv77.live/';
     let origin = 'https://colatv77.live';
 
-    if (parsedUrl.hostname.includes('vtvdigital.vn') || parsedUrl.hostname.includes('vtvgo.vn') || parsedUrl.hostname.includes('vtv.vn')) {
+    if (parsedUrl.hostname.includes('zktsva.app') || parsedUrl.hostname.includes('gvvsb.com') || parsedUrl.hostname.includes('colatv88xi.cc') || parsedUrl.hostname.includes('adviceme.io') || parsedUrl.hostname.includes('gavang')) {
+        referer = 'https://gavang33.me/';
+        origin = 'https://gavang33.me';
+    } else if (parsedUrl.hostname.includes('vtvdigital.vn') || parsedUrl.hostname.includes('vtvgo.vn') || parsedUrl.hostname.includes('vtv.vn')) {
         referer = 'https://vtvgo.vn/';
         origin = 'https://vtvgo.vn';
     } else if (parsedUrl.hostname.includes('fptplay53.net') || parsedUrl.hostname.includes('fptplay.net') || parsedUrl.hostname.includes('fptplay.vn')) {

@@ -44,7 +44,7 @@ export default function Home() {
   useEffect(() => {
     try {
       const savedSrc = localStorage.getItem('h5n1_default_source');
-      if (savedSrc && (savedSrc === 'vtv6' || savedSrc === 'colatv' || savedSrc === 'cakhiatv')) {
+      if (savedSrc && (savedSrc === 'vtv6' || savedSrc === 'colatv' || savedSrc === 'cakhiatv' || savedSrc === 'gavangtv')) {
         setCurrentSource(savedSrc);
       }
     } catch {}
@@ -77,7 +77,7 @@ export default function Home() {
     if (!loadMore) setIsLoading(true);
     setError('');
     try {
-      const activeSrc = currentSource === 'cakhiatv' ? 'cakhiatv' : 'colatv';
+      const activeSrc = currentSource === 'gavangtv' ? 'gavangtv' : currentSource === 'cakhiatv' ? 'cakhiatv' : 'colatv';
       const params = new URLSearchParams({ 
         filter: 'all', 
         source: activeSrc,
@@ -216,7 +216,7 @@ export default function Home() {
           }
 
           if (!activeServer && data.servers && data.servers.length > 0) {
-            let priorityList: string[] = ['gialang', 'hiro', 'roy', 'johan', 'max'];
+            let priorityList: string[] = ['gasieutoc', 'gasieubeu', 'gasieugay', 'gialang', 'hiro', 'roy', 'johan', 'max'];
             try {
               const srcKey = `h5n1_commentator_priority_${activeMatch.source || currentSource}`;
               const saved = localStorage.getItem(srcKey) || localStorage.getItem('h5n1_commentator_priority');
@@ -657,7 +657,7 @@ export default function Home() {
                         </span>
                       </button>
 
-                      {/* Tab: BLV / BLV Cakhia */}
+                      {/* Tab: BLV / BLV Cakhia / BLV Gà Vàng */}
                       <button
                         onClick={() => setActiveFilter('blv')}
                         className={`flex items-center gap-1.5 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all duration-200 shadow-sm shrink-0 ${
@@ -667,7 +667,7 @@ export default function Home() {
                         }`}
                       >
                         <Headphones size={15} className={activeFilter === 'blv' ? 'text-white' : 'text-purple-500'} />
-                        <span>{currentSource === 'cakhiatv' ? 'BLV Cakhia' : 'Có BLV'}</span>
+                        <span>{currentSource === 'gavangtv' ? 'BLV Gà Vàng' : currentSource === 'cakhiatv' ? 'BLV Cakhia' : 'Có BLV'}</span>
                         <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeFilter === 'blv' ? 'bg-white/20 text-white' : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
                           {tabCounts.blv}
                         </span>

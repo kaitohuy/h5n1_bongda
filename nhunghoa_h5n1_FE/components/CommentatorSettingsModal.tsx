@@ -67,6 +67,21 @@ const STATIC_MASTER_COLA = [
     source: 'colatv'
 }));
 
+const STATIC_MASTER_GAVANG = [
+    'Gà Siêu Tốc', 'Gà Siêu Bệu', 'Gà Siêu Gáy', 'Gà Siêu Kiêu', 'Gà Siêu Péo', 
+    'Gà Ô Long', 'Gà Siêu Son', 'Gà Chiến', 'Gà Chọi', 'Gà Con'
+].map(name => ({
+    id: `gavang_${normalizeCommentator(name)}`,
+    name: name,
+    cleanName: name,
+    norm: normalizeCommentator(name),
+    userImage: '',
+    fansCount: 0,
+    visitHistory: 0,
+    matchCount: 0,
+    source: 'gavangtv'
+}));
+
 export default function CommentatorSettingsModal({ 
     isOpen, 
     onClose, 
@@ -109,7 +124,7 @@ export default function CommentatorSettingsModal({
         let mounted = true;
 
         // 1. Instant Cache / Pre-seeded initial display (Zero latency)
-        let initialList = selectedSource === 'cakhiatv' ? STATIC_MASTER_CAKHIA : STATIC_MASTER_COLA;
+        let initialList = selectedSource === 'gavangtv' ? STATIC_MASTER_GAVANG : selectedSource === 'cakhiatv' ? STATIC_MASTER_CAKHIA : STATIC_MASTER_COLA;
         try {
             const cachedMasterJson = localStorage.getItem(`h5n1_cached_commentators_${selectedSource}`);
             if (cachedMasterJson) {
@@ -261,6 +276,7 @@ export default function CommentatorSettingsModal({
         localStorage.removeItem('h5n1_commentator_priority');
         localStorage.removeItem('h5n1_commentator_priority_colatv');
         localStorage.removeItem('h5n1_commentator_priority_cakhiatv');
+        localStorage.removeItem('h5n1_commentator_priority_gavangtv');
         localStorage.setItem('h5n1_default_source', 'vtv6');
         if (onSourceChange) onSourceChange('vtv6');
         setSavedNotice(true);
@@ -310,6 +326,13 @@ export default function CommentatorSettingsModal({
             badge: '🟡 Siêu Nhiều',
             color: 'from-amber-500 to-orange-500' 
         },
+        { 
+            id: 'gavangtv', 
+            name: 'Gà Vàng TV', 
+            desc: '22+ Trận đấu, BLV Gà Vàng',
+            badge: '🟠 Gà Vàng',
+            color: 'from-yellow-500 to-amber-600' 
+        },
     ];
 
     return (
@@ -355,7 +378,7 @@ export default function CommentatorSettingsModal({
                         <span className="text-[10px] text-foreground/50 italic">Tự động lưu</span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {AVAILABLE_SOURCES.map(src => {
                             const isSelected = selectedSource === src.id;
                             return (
@@ -411,7 +434,7 @@ export default function CommentatorSettingsModal({
                                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/40" />
                                 <input
                                     type="text"
-                                    placeholder={`Tìm kiếm BLV ${selectedSource === 'cakhiatv' ? 'Cakhia' : 'Cola'} (ROY, Già Làng, HIRO...)`}
+                                    placeholder={`Tìm kiếm BLV ${selectedSource === 'gavangtv' ? 'Gà Vàng' : selectedSource === 'cakhiatv' ? 'Cakhia' : 'Cola'} (Gà Siêu Tốc, ROY, Già Làng...)`}
                                     value={searchTerm}
                                     onChange={e => setSearchTerm(e.target.value)}
                                     className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-border/40 text-foreground placeholder:text-foreground/40 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -427,7 +450,7 @@ export default function CommentatorSettingsModal({
                             {isLoading ? (
                                 <div className="py-12 flex flex-col items-center justify-center text-foreground/50 gap-2">
                                     <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                                    <span className="text-xs">Đang tải danh sách BLV {selectedSource === 'cakhiatv' ? 'CakhiaTV' : 'ColaTV'}...</span>
+                                    <span className="text-xs">Đang tải danh sách BLV {selectedSource === 'gavangtv' ? 'Gà Vàng TV' : selectedSource === 'cakhiatv' ? 'CakhiaTV' : 'ColaTV'}...</span>
                                 </div>
                             ) : filteredCommentators.length === 0 ? (
                                 <div className="py-8 text-center text-foreground/40 text-sm">
