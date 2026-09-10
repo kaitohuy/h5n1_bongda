@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Loader2, ChevronDown, Flame, Calendar, Clock, ListFilter, Tv, Headphones } from 'lucide-react';
 import Header from '@/components/Header';
 import MatchCard from '@/components/MatchCard';
@@ -37,15 +37,35 @@ const VTV6_MATCH_DATA: Match = {
 };
 
 export default function Home() {
-  // ── Source state: Default to VTV6 as requested ──────────────────────────────
-  const [currentSource, setCurrentSource] = useState<string>('vtv6');
+  // ── Source state: Initialized with lazy function to avoid VTV6 -> Gavang jump ──
+  const [currentSource, setCurrentSource] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('h5n1_default_source');
+        if (saved && ['vtv6', 'colatv', 'cakhiatv', 'gavangtv'].includes(saved)) {
+          return saved;
+        }
+      } catch {}
+    }
+    return 'vtv6';
+  });
 
-  // Load saved default source on client mount
+  const currentSourceRef = useRef<string>(currentSource);
+  useEffect(() => {
+    currentSourceRef.current = currentSource;
+  }, [currentSource]);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sync saved default source on client mount if changed
   useEffect(() => {
     try {
       const savedSrc = localStorage.getItem('h5n1_default_source');
-      if (savedSrc && (savedSrc === 'vtv6' || savedSrc === 'colatv' || savedSrc === 'cakhiatv' || savedSrc === 'gavangtv')) {
-        setCurrentSource(savedSrc);
+      if (savedSrc && ['vtv6', 'colatv', 'cakhiatv', 'gavangtv'].includes(savedSrc)) {
+        if (savedSrc !== currentSource) {
+          setCurrentSource(savedSrc);
+          currentSourceRef.current = savedSrc;
+        }
       }
     } catch {}
   }, []);
@@ -57,9 +77,25 @@ export default function Home() {
   const [rawServers, setRawServers] = useState<any[]>([]);
   const [loadingStreamMsg, setLoadingStreamMsg] = useState('');
 
-  const [matches, setMatches] = useState<Match[]>([]);
+  // ── SWR Client Cache: 0ms Instant Initial Display ──────────────────────────
+  const [matches, setMatches] = useState<Match[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedSrc = localStorage.getItem('h5n1_default_source') || 'vtv6';
+        if (savedSrc !== 'vtv6') {
+          const cached = localStorage.getItem(`h5n1_cached_matches_${savedSrc}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        }
+      } catch {}
+    }
+    return [];
+  });
+
   const [hasMoreBackend, setHasMoreBackend] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState<'hot' | 'live' | null>(null);
   const [error, setError] = useState('');
 
@@ -72,20 +108,58 @@ export default function Home() {
     setVisibleCount(15);
   }, [activeFilter]);
 
-  // ── Fetch ALL matches from BE ──────────────────────────────────────────────
-  const fetchAllMatches = useCallback(async (loadMore: boolean = false) => {
-    if (!loadMore) setIsLoading(true);
+  // ── Fetch matches from BE with strict Source Guard & Cancellation ───────────
+  const fetchAllMatches = useCallback(async (loadMore: boolean = false, overrideSource?: string) => {
+    const activeSrc = overrideSource || currentSourceRef.current;
+    if (activeSrc === 'vtv6') {
+      setIsLoading(false);
+      return;
+    }
+
+    // 1. Instant Cache render (Zero Latency - No White Screen)
+    if (!loadMore) {
+      try {
+        const cached = localStorage.getItem(`h5n1_cached_matches_${activeSrc}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMatches(parsed);
+            setIsLoading(false);
+          } else {
+            setIsLoading(true);
+          }
+        } else {
+          setIsLoading(true);
+        }
+      } catch {
+        setIsLoading(true);
+      }
+    }
+
+    // 2. Cancel previous in-flight request to avoid race condition
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setError('');
     try {
-      const activeSrc = currentSource === 'gavangtv' ? 'gavangtv' : currentSource === 'cakhiatv' ? 'cakhiatv' : 'colatv';
       const params = new URLSearchParams({ 
         filter: 'all', 
         source: activeSrc,
         loadMore: loadMore ? 'true' : 'false'
       });
-      const res = await fetch(`${BE_URL}/api/matches?${params}`);
+      const res = await fetch(`${BE_URL}/api/matches?${params}`, { signal: controller.signal });
       const data = await res.json();
       if (!data.success) throw new Error(data.error || 'Lỗi lấy dữ liệu');
+
+      // Strict Source Guard: Ignore if user switched source while request was pending!
+      if (currentSourceRef.current !== activeSrc || (data.source && data.source !== activeSrc)) {
+        console.log(`[FE] Discarding response for ${data.source || activeSrc}, current is ${currentSourceRef.current}`);
+        return;
+      }
+
       setHasMoreBackend(Boolean(data.hasMore));
 
       const raw: Match[] = (data.matches || []).map((m: any) => {
@@ -133,29 +207,78 @@ export default function Home() {
           startTime: m.startTime || 0,
         };
       });
+
       setMatches(raw);
-    } catch {
-      setError('Không kết nối được đến backend. Kiểm tra BE đang chạy trên cổng 8000.');
+      try {
+        localStorage.setItem(`h5n1_cached_matches_${activeSrc}`, JSON.stringify(raw));
+      } catch {}
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      if (currentSourceRef.current === activeSrc) {
+        setError('Không kết nối được đến backend. Kiểm tra BE đang chạy trên cổng 8000.');
+      }
     } finally {
-      if (!loadMore) setIsLoading(false);
+      if (!loadMore && currentSourceRef.current === activeSrc) {
+        setIsLoading(false);
+      }
     }
-  }, [currentSource]);
+  }, []);
 
+  // Fetch when source changes
   useEffect(() => {
-    fetchAllMatches(false);
-  }, [fetchAllMatches]);
-
-  useEffect(() => {
-    const id = setInterval(() => fetchAllMatches(false), 30_000);
-    return () => clearInterval(id);
-  }, [fetchAllMatches]);
-
-  // When source switches to vtv6, reset match selection
-  useEffect(() => {
-    if (currentSource === 'vtv6') {
+    if (currentSource !== 'vtv6') {
+      fetchAllMatches(false, currentSource);
+    } else {
       setActiveMatch(null);
+      setIsLoading(false);
     }
-  }, [currentSource]);
+  }, [currentSource, fetchAllMatches]);
+
+  // Periodic background refresh every 30s
+  useEffect(() => {
+    if (currentSource === 'vtv6') return;
+    const id = setInterval(() => {
+      if (currentSourceRef.current !== 'vtv6') {
+        fetchAllMatches(false, currentSourceRef.current);
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [currentSource, fetchAllMatches]);
+
+  // Handle user switching source
+  const handleSourceChange = (src: string) => {
+    setCurrentSource(src);
+    currentSourceRef.current = src;
+    localStorage.setItem('h5n1_default_source', src);
+    setActiveMatch(null);
+
+    if (src === 'vtv6') {
+      setMatches([]);
+      setIsLoading(false);
+    } else {
+      // 0ms instant display from cache
+      try {
+        const cached = localStorage.getItem(`h5n1_cached_matches_${src}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMatches(parsed);
+            setIsLoading(false);
+          } else {
+            setMatches([]);
+            setIsLoading(true);
+          }
+        } else {
+          setMatches([]);
+          setIsLoading(true);
+        }
+      } catch {
+        setMatches([]);
+        setIsLoading(true);
+      }
+      fetchAllMatches(false, src);
+    }
+  };
 
   // ── Fetch stream URL ───────────────────────────────────────────────────────
   const STREAM_LOADING_PHASES = [
@@ -386,11 +509,7 @@ export default function Home() {
       <Header 
         onLogoClick={() => { setActiveMatch(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
         currentSource={currentSource}
-        onSourceChange={(src) => {
-          setCurrentSource(src);
-          localStorage.setItem('h5n1_default_source', src);
-          setActiveMatch(null);
-        }}
+        onSourceChange={handleSourceChange}
         onSettingsChanged={() => {
           if (activeMatch && activeMatch.source !== 'vtv6') {
             setActiveServer('');
