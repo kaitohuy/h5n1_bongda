@@ -64,7 +64,7 @@ export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceCh
                                 <button
                                     onClick={() => onSourceChange('vtv6')}
                                     className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                                        currentSource === 'vtv6'
+                                        mounted && currentSource === 'vtv6'
                                             ? 'bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-md'
                                             : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
@@ -75,7 +75,7 @@ export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceCh
                                 <button
                                     onClick={() => onSourceChange('colatv')}
                                     className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                                        currentSource === 'colatv'
+                                        mounted && currentSource === 'colatv'
                                             ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
                                             : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
@@ -85,7 +85,7 @@ export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceCh
                                 <button
                                     onClick={() => onSourceChange('cakhiatv')}
                                     className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                                        currentSource === 'cakhiatv'
+                                        mounted && currentSource === 'cakhiatv'
                                             ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-md'
                                             : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}
@@ -95,7 +95,7 @@ export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceCh
                                 <button
                                     onClick={() => onSourceChange('gavangtv')}
                                     className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg transition-all duration-200 ${
-                                        currentSource === 'gavangtv'
+                                        mounted && currentSource === 'gavangtv'
                                             ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-md'
                                             : 'text-foreground/70 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800'
                                     }`}

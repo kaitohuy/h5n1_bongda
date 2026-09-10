@@ -50,6 +50,7 @@ export default function Home() {
     return 'vtv6';
   });
 
+  const [mounted, setMounted] = useState(false);
   const currentSourceRef = useRef<string>(currentSource);
   useEffect(() => {
     currentSourceRef.current = currentSource;
@@ -57,7 +58,7 @@ export default function Home() {
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Sync saved default source on client mount if changed
+  // Sync saved default source on client mount immediately
   useEffect(() => {
     try {
       const savedSrc = localStorage.getItem('h5n1_default_source');
@@ -68,6 +69,7 @@ export default function Home() {
         }
       }
     } catch {}
+    setMounted(true);
   }, []);
 
   const [activeMatch, setActiveMatch] = useState<Match | null>(null);
@@ -556,8 +558,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* ── MODE: VTV6 DIRECT BROADCAST ── */}
-        {currentSource === 'vtv6' ? (
+        {/* ── SSR / Initial Mount Placeholder: Avoid flashing VTV6 banner ── */}
+        {!mounted ? (
+          <div className="space-y-6 animate-pulse">
+            <div className="bg-surface/60 border border-border/40 rounded-2xl h-[260px]" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-surface/50 border border-border/40 rounded-xl h-32" />
+              ))}
+            </div>
+          </div>
+        ) : currentSource === 'vtv6' ? (
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* Spotlight Card for VTV6 */}
             <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
