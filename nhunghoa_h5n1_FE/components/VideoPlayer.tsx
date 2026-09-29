@@ -551,23 +551,25 @@ export default function VideoPlayer({
                         <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
                     </button>
 
-                    {/* Fullscreen Button */}
+                    {/* Fullscreen Button with Text */}
                     <button
                         onClick={handleFullScreen}
-                        className="p-1.5 rounded-lg bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)] transition-all"
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-sm hover:opacity-95 active:scale-95 transition-all"
                         title={isFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
-                        aria-label="Toàn màn hình"
+                        aria-label={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
                     >
-                        {isFullscreen ? <Minimize size={15} /> : <Maximize size={15} />}
+                        {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+                        <span>{isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
                     </button>
 
-                    {/* Close */}
+                    {/* Close Button: Icon only as requested */}
                     <button
                         onClick={onClose}
-                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all sm:ml-1 whitespace-nowrap"
+                        className="shrink-0 p-1.5 sm:p-2 rounded-lg bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all flex items-center justify-center"
+                        title="Đóng video"
+                        aria-label="Đóng video"
                     >
-                        <X size={13} />
-                        Đóng
+                        <X size={15} />
                     </button>
                 </div>
             </div>
@@ -582,6 +584,28 @@ export default function VideoPlayer({
                 }}
                 onDoubleClick={handleFullScreen}
             >
+                {/* ── Mobile Floating Fullscreen Button (Hiện trên mobile khi chưa Full màn hình) ── */}
+                {!isFullscreen && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleFullScreen();
+                        }}
+                        className="
+                            md:hidden absolute bottom-14 right-3 sm:bottom-16 sm:right-4 z-30
+                            flex items-center gap-2 px-3.5 py-2.5 rounded-2xl
+                            bg-gradient-to-r from-red-600/95 to-rose-600/95 hover:from-red-600 hover:to-rose-600
+                            text-white font-black text-xs tracking-wide
+                            shadow-[0_8px_30px_rgba(220,38,38,0.55)] border border-white/40 backdrop-blur-md
+                            active:scale-90 transition-all duration-200 animate-in fade-in zoom-in-95
+                        "
+                        title="Mở toàn màn hình"
+                        aria-label="Mở toàn màn hình"
+                    >
+                        <Maximize size={16} className="animate-pulse" />
+                        <span>Toàn Màn Hình</span>
+                    </button>
+                )}
                 {/* Loading / Error overlay */}
                 {(isLoading || isError) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white z-20 bg-black/85 pointer-events-none">
