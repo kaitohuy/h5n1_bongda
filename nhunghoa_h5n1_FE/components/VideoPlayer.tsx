@@ -78,10 +78,11 @@ export default function VideoPlayer({
     const [isFillScreen, setIsFillScreen] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
             try {
-                return localStorage.getItem('h5n1_player_fillscreen') === 'true';
+                const saved = localStorage.getItem('h5n1_player_fillscreen');
+                if (saved !== null) return saved === 'true';
             } catch {}
         }
-        return false;
+        return true;
     });
 
     const toggleFillScreen = useCallback(() => {
@@ -170,10 +171,20 @@ export default function VideoPlayer({
     // Surface Click/Tap Handler (User tap video: nếu ẩn -> hiện, nếu hiện -> ẩn)
     const handlePlayerSurfaceClick = useCallback((e?: React.MouseEvent | React.TouchEvent) => {
         if (e) {
+            e.stopPropagation();
             const target = e.target as HTMLElement;
             if (target && target.closest('button, input, select, textarea, [data-controls-interactive="true"]')) {
                 return;
             }
+        }
+
+        // Tự động kích hoạt Native Fullscreen nếu đang trong chế độ auto 30s và user có tương tác chạm
+        if (isAutoFullscreen30s && !document.fullscreenElement && containerRef.current) {
+            try {
+                if (containerRef.current.requestFullscreen) {
+                    containerRef.current.requestFullscreen().catch(() => {});
+                }
+            } catch {}
         }
 
         setShowControls((prev) => {
@@ -192,7 +203,7 @@ export default function VideoPlayer({
             }
             return next;
         });
-    }, [isSettingsOpen]);
+    }, [isSettingsOpen, isAutoFullscreen30s]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         if (e.movementX === 0 && e.movementY === 0) return;
@@ -622,7 +633,11 @@ export default function VideoPlayer({
                     : 'relative rounded-2xl border border-border shadow-2xl flex flex-col justify-center items-center'
             }`}
             onMouseMove={handleMouseMove}
-            onClick={handlePlayerSurfaceClick}
+            onClick={(e) => {
+                if (e.target === containerRef.current || e.target === videoWrapperRef.current) {
+                    handlePlayerSurfaceClick(e);
+                }
+            }}
         >
             {/* ────────── Player top bar (Hidden completely in Fullscreen) ────────── */}
             {!isFullscreen && (
@@ -756,7 +771,7 @@ export default function VideoPlayer({
                     <video 
                         ref={videoRef} 
                         className={`w-full h-full ${isFullscreen ? 'rounded-none' : 'rounded-b-2xl'} ${
-                            isFillScreen ? 'object-cover' : 'object-contain'
+                            isFillScreen ? 'landscape:object-cover portrait:object-contain object-cover' : 'object-contain'
                         } pointer-events-none transition-transform duration-150`} 
                         style={{
                             transform: `scale(${zoomLevel / 100})`,
@@ -774,8 +789,14 @@ export default function VideoPlayer({
                 {!useIframe && (
                     <div 
                         className="absolute inset-0 z-20 cursor-pointer touch-manipulation"
-                        onClick={handlePlayerSurfaceClick}
-                        onDoubleClick={handleFullScreen}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handlePlayerSurfaceClick(e);
+                        }}
+                        onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            handleFullScreen();
+                        }}
                     />
                 )}
 
