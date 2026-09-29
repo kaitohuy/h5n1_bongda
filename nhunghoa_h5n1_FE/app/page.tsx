@@ -569,7 +569,7 @@ export default function Home() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-10">
         {/* ── Active Video Player Section ── */}
         {activeMatch && (
-          <section className="space-y-4 animate-in fade-in duration-300">
+          <section className="space-y-4">
             <VideoPlayer
               streamUrl={streamUrl}
               match={activeMatch}
