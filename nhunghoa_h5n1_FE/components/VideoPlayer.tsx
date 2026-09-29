@@ -59,6 +59,8 @@ export default function VideoPlayer({
     const [volume, setVolume] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isWebFullscreen, setIsWebFullscreen] = useState(false);
+    const effectiveFullscreen = isFullscreen || isWebFullscreen;
     const [showControls, setShowControls] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -137,13 +139,30 @@ export default function VideoPlayer({
     // Handle Fullscreen Change Detection
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setIsFullscreen(Boolean(document.fullscreenElement));
+            const isFull = Boolean(document.fullscreenElement);
+            setIsFullscreen(isFull);
+            if (!isFull) {
+                setIsWebFullscreen(false);
+            }
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
         return () => {
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
         };
     }, []);
+
+    // Escape key to exit Web Fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isWebFullscreen) {
+                setIsWebFullscreen(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isWebFullscreen]);
 
     // ── Click Outside to Close Settings ──────────────────────────────────────
     useEffect(() => {
@@ -219,14 +238,14 @@ export default function VideoPlayer({
                         enableWorker: true,
                         lowLatencyMode: false,
                         backBufferLength: 30,
-                        maxBufferLength: Math.max(30, catchupThreshold * 3),
+                        maxBufferLength: 30,
                         maxMaxBufferLength: 60,
                         maxBufferSize: 60 * 1000 * 1000,
                         manifestLoadingMaxRetry: 5,
                         levelLoadingMaxRetry: 5,
                         fragLoadingMaxRetry: 5,
-                        liveSyncDuration: catchupThreshold,
-                        liveMaxLatencyDuration: catchupThreshold + 10,
+                        liveSyncDurationCount: 3,
+                        liveMaxLatencyDurationCount: 10,
                         liveDurationInfinity: true,
                     });
                     hlsRef.current = hls;
@@ -461,20 +480,32 @@ export default function VideoPlayer({
     };
 
     const handleFullScreen = () => {
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => {});
+        if (document.fullscreenElement || isWebFullscreen) {
+            if (document.fullscreenElement) {
+                document.exitFullscreen().catch(() => {});
+            }
+            setIsWebFullscreen(false);
             return;
         }
 
         const targetElement = videoWrapperRef.current || containerRef.current || videoRef.current;
         if (targetElement) {
             if (targetElement.requestFullscreen) {
-                targetElement.requestFullscreen().catch(() => {});
+                targetElement.requestFullscreen().catch(() => {
+                    // Browser gesture policy blocked native requestFullscreen -> use Web Fullscreen fallback
+                    setIsWebFullscreen(true);
+                });
             } else if ((targetElement as any).webkitRequestFullscreen) {
-                (targetElement as any).webkitRequestFullscreen();
-            } else if ((targetElement as any).msRequestFullscreen) {
-                (targetElement as any).msRequestFullscreen();
+                try {
+                    (targetElement as any).webkitRequestFullscreen();
+                } catch {
+                    setIsWebFullscreen(true);
+                }
+            } else {
+                setIsWebFullscreen(true);
             }
+        } else {
+            setIsWebFullscreen(true);
         }
     };
 
@@ -493,7 +524,9 @@ export default function VideoPlayer({
     return (
         <div 
             ref={containerRef} 
-            className="relative w-full rounded-2xl overflow-hidden bg-black border border-border shadow-2xl flex flex-col group select-none"
+            className={`relative w-full overflow-hidden bg-black border border-border shadow-2xl flex flex-col group select-none transition-all duration-300 ${
+                isWebFullscreen ? 'fixed inset-0 z-[9999] w-screen h-screen rounded-none' : 'rounded-2xl'
+            }`}
             onMouseMove={triggerControlsActivity}
             onMouseLeave={() => {
                 if (!isSettingsOpen) setShowControls(false);
@@ -501,7 +534,7 @@ export default function VideoPlayer({
         >
             {/* ────────── Player top bar ────────── */}
             <div className={`bg-[var(--header-bg)] dark:bg-slate-900 px-4 py-2.5 flex items-center justify-between border-b border-[var(--border)] text-[var(--foreground)] z-20 gap-2 flex-wrap sm:flex-nowrap transition-opacity duration-300 backdrop-blur-md ${
-                isFullscreen && !showControls ? 'opacity-0 pointer-events-none' : 'opacity-100'
+                effectiveFullscreen && !showControls ? 'opacity-0 pointer-events-none' : 'opacity-100'
             }`}>
                 {/* Match title & status badge */}
                 <div className="flex items-center gap-2 min-w-0">
@@ -551,15 +584,15 @@ export default function VideoPlayer({
                         <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
                     </button>
 
-                    {/* Fullscreen Button with Text */}
+                    {/* Fullscreen Button: Same styling as other buttons, no gradient */}
                     <button
                         onClick={handleFullScreen}
-                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-black bg-gradient-to-r from-red-600 to-rose-500 text-white shadow-sm hover:opacity-95 active:scale-95 transition-all"
-                        title={isFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
-                        aria-label={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
+                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)] active:scale-95 transition-all"
+                        title={effectiveFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
+                        aria-label={effectiveFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
                     >
-                        {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-                        <span>{isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
+                        {effectiveFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
+                        <span>{effectiveFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
                     </button>
 
                     {/* Close Button: Icon only as requested */}
@@ -584,28 +617,6 @@ export default function VideoPlayer({
                 }}
                 onDoubleClick={handleFullScreen}
             >
-                {/* ── Mobile Floating Fullscreen Button (Hiện trên mobile khi chưa Full màn hình) ── */}
-                {!isFullscreen && (
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleFullScreen();
-                        }}
-                        className="
-                            md:hidden absolute bottom-14 right-3 sm:bottom-16 sm:right-4 z-30
-                            flex items-center gap-2 px-3.5 py-2.5 rounded-2xl
-                            bg-gradient-to-r from-red-600/95 to-rose-600/95 hover:from-red-600 hover:to-rose-600
-                            text-white font-black text-xs tracking-wide
-                            shadow-[0_8px_30px_rgba(220,38,38,0.55)] border border-white/40 backdrop-blur-md
-                            active:scale-90 transition-all duration-200 animate-in fade-in zoom-in-95
-                        "
-                        title="Mở toàn màn hình"
-                        aria-label="Mở toàn màn hình"
-                    >
-                        <Maximize size={16} className="animate-pulse" />
-                        <span>Toàn Màn Hình</span>
-                    </button>
-                )}
                 {/* Loading / Error overlay */}
                 {(isLoading || isError) && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white z-20 bg-black/85 pointer-events-none">
