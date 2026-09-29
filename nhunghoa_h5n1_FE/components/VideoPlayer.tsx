@@ -364,14 +364,14 @@ export default function VideoPlayer({
             if (playbackSecondsRef.current >= 30) {
                 autoFullscreenTriggeredRef.current = true;
                 clearInterval(interval);
-                if (!document.fullscreenElement) {
+                if (!document.fullscreenElement && !isWebFullscreen) {
                     handleFullScreen();
                 }
             }
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isAutoFullscreen30s, isPlaying]);
+    }, [isAutoFullscreen30s, isPlaying, isWebFullscreen]);
 
     // ── Keyboard Shortcuts (Space, F, M, P) ──────────────────────────────────
     useEffect(() => {
@@ -488,20 +488,23 @@ export default function VideoPlayer({
             return;
         }
 
-        const targetElement = videoWrapperRef.current || containerRef.current || videoRef.current;
+        const targetElement = containerRef.current || videoWrapperRef.current || videoRef.current;
         if (targetElement) {
-            if (targetElement.requestFullscreen) {
-                targetElement.requestFullscreen().catch(() => {
-                    // Browser gesture policy blocked native requestFullscreen -> use Web Fullscreen fallback
-                    setIsWebFullscreen(true);
-                });
-            } else if ((targetElement as any).webkitRequestFullscreen) {
-                try {
+            try {
+                if (targetElement.requestFullscreen) {
+                    const req = targetElement.requestFullscreen();
+                    if (req && req.catch) {
+                        req.catch(() => {
+                            // Browser gesture policy blocked native requestFullscreen -> use Web Fullscreen fallback
+                            setIsWebFullscreen(true);
+                        });
+                    }
+                } else if ((targetElement as any).webkitRequestFullscreen) {
                     (targetElement as any).webkitRequestFullscreen();
-                } catch {
+                } else {
                     setIsWebFullscreen(true);
                 }
-            } else {
+            } catch {
                 setIsWebFullscreen(true);
             }
         } else {
@@ -610,10 +613,17 @@ export default function VideoPlayer({
             {/* ────────── Video area with Custom Floating Overlay Controls ────────── */}
             <div 
                 ref={videoWrapperRef}
-                className="relative w-full aspect-video bg-black rounded-b-2xl overflow-hidden flex items-center justify-center" 
+                className={`relative w-full ${effectiveFullscreen ? 'flex-1 h-full rounded-none' : 'aspect-video rounded-b-2xl'} bg-black overflow-hidden flex items-center justify-center`} 
                 style={{ isolation: 'isolate' }}
                 onClick={() => {
-                    if (!useIframe) togglePlayPause();
+                    // Tap on video toggles control bars visibility, DOES NOT pause video
+                    if (!useIframe) {
+                        setShowControls((prev) => {
+                            const next = !prev;
+                            if (next) triggerControlsActivity();
+                            return next;
+                        });
+                    }
                 }}
                 onDoubleClick={handleFullScreen}
             >
@@ -643,7 +653,7 @@ export default function VideoPlayer({
                         ref={iframeRef}
                         key={streamUrl}
                         src={streamUrl}
-                        className="w-full h-full border-0 rounded-b-2xl transition-transform duration-150"
+                        className={`w-full h-full border-0 ${effectiveFullscreen ? 'rounded-none' : 'rounded-b-2xl'} transition-transform duration-150`}
                         style={{
                             transform: `scale(${zoomLevel / 100})`,
                             transformOrigin: 'center center',
@@ -661,7 +671,7 @@ export default function VideoPlayer({
                     /* ── Native video element without native controls ── */
                     <video 
                         ref={videoRef} 
-                        className="w-full h-full rounded-b-2xl object-cover transition-transform duration-150" 
+                        className={`w-full h-full ${effectiveFullscreen ? 'rounded-none' : 'rounded-b-2xl'} object-contain transition-transform duration-150`} 
                         style={{
                             transform: `scale(${zoomLevel / 100})`,
                             transformOrigin: 'center center',
@@ -778,7 +788,7 @@ export default function VideoPlayer({
                                     {isSettingsOpen && (
                                         <div 
                                             ref={settingsRef}
-                                            className="absolute right-0 bottom-full mb-3 w-80 bg-slate-950/95 border border-white/15 rounded-2xl shadow-2xl p-4 text-xs z-50 text-white backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 duration-150 space-y-4"
+                                            className="fixed sm:absolute bottom-16 sm:bottom-full right-2 sm:right-0 mb-2 w-[calc(100vw-16px)] sm:w-80 max-w-sm max-h-[75vh] overflow-y-auto bg-slate-950/95 border border-white/20 rounded-2xl shadow-2xl p-4 text-xs z-50 text-white backdrop-blur-2xl animate-in fade-in slide-in-from-bottom-2 duration-150 space-y-4"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
@@ -983,9 +993,9 @@ export default function VideoPlayer({
                                 <button
                                     onClick={handleFullScreen}
                                     className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all"
-                                    title={isFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
+                                    title={effectiveFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
                                 >
-                                    {isFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
+                                    {effectiveFullscreen ? <Minimize size={17} /> : <Maximize size={17} />}
                                 </button>
                             </div>
                         </div>
