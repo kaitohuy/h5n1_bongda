@@ -74,7 +74,7 @@ export default function VideoPlayer({
     const [qualityLevels, setQualityLevels] = useState<QualityLevel[]>([]);
     const [currentQuality, setCurrentQuality] = useState<number>(-1); // -1 = Auto
 
-    // Fill/Cover Mode (Loại bỏ hoàn toàn viền đen hai bên khi xoay ngang điện thoại)
+    // Fill/Cover Mode (Mặc định OFF để video chuẩn 16:9 không bị phóng to cắt xén nội dung)
     const [isFillScreen, setIsFillScreen] = useState<boolean>(() => {
         if (typeof window !== 'undefined') {
             try {
@@ -82,7 +82,7 @@ export default function VideoPlayer({
                 if (saved !== null) return saved === 'true';
             } catch {}
         }
-        return true;
+        return false; // Mặc định: false (Chuẩn 16:9, không bị zoom cắt xén)
     });
 
     const toggleFillScreen = useCallback(() => {
@@ -107,27 +107,7 @@ export default function VideoPlayer({
         return 10; // Default: 10s safe buffer for smooth playback on weak machines
     });
 
-    // Auto fullscreen after 30s feature (Default: ON as requested)
-    const [isAutoFullscreen30s, setIsAutoFullscreen30s] = useState<boolean>(() => {
-        if (typeof window !== 'undefined') {
-            try {
-                const saved = localStorage.getItem('h5n1_auto_fullscreen_30s');
-                if (saved !== null) return saved === 'true';
-            } catch {}
-        }
-        return true; // Default: ON
-    });
-
-    const autoFullscreenTriggeredRef = useRef<boolean>(false);
-    const playbackSecondsRef = useRef<number>(0);
-
     const useIframe = isIframePlayerUrl(streamUrl);
-
-    // Reset auto-fullscreen timer and flags when streamUrl changes
-    useEffect(() => {
-        autoFullscreenTriggeredRef.current = false;
-        playbackSecondsRef.current = 0;
-    }, [streamUrl, match?.id]);
 
     // Check PiP capability on mount
     useEffect(() => {
@@ -178,15 +158,6 @@ export default function VideoPlayer({
             }
         }
 
-        // Tự động kích hoạt Native Fullscreen nếu đang trong chế độ auto 30s và user có tương tác chạm
-        if (isAutoFullscreen30s && !document.fullscreenElement && containerRef.current) {
-            try {
-                if (containerRef.current.requestFullscreen) {
-                    containerRef.current.requestFullscreen().catch(() => {});
-                }
-            } catch {}
-        }
-
         setShowControls((prev) => {
             const next = !prev;
             if (controlsTimeoutRef.current) {
@@ -203,7 +174,7 @@ export default function VideoPlayer({
             }
             return next;
         });
-    }, [isSettingsOpen, isAutoFullscreen30s]);
+    }, [isSettingsOpen]);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
         if (e.movementX === 0 && e.movementY === 0) return;
@@ -481,30 +452,6 @@ export default function VideoPlayer({
             video.removeEventListener('volumechange', onVolumeChange);
         };
     }, [isAutoCatchup, catchupThreshold]);
-
-    // ── Auto Fullscreen after 30s of Playing ──────────────────────────────────
-    useEffect(() => {
-        if (!isAutoFullscreen30s || autoFullscreenTriggeredRef.current || !isPlaying) return;
-
-        const interval = setInterval(() => {
-            if (autoFullscreenTriggeredRef.current) {
-                clearInterval(interval);
-                return;
-            }
-
-            const video = videoRef.current;
-            if (!useIframe && video && video.paused) return;
-
-            playbackSecondsRef.current += 1;
-            if (playbackSecondsRef.current >= 30) {
-                autoFullscreenTriggeredRef.current = true;
-                clearInterval(interval);
-                enterFullScreen();
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [isAutoFullscreen30s, isPlaying, useIframe, enterFullScreen]);
 
     // ── Keyboard Shortcuts (Space, F, M, P) ──────────────────────────────────
     useEffect(() => {
@@ -1059,35 +1006,6 @@ export default function VideoPlayer({
                                                             ▾
                                                         </span>
                                                     </div>
-                                                </div>
-
-                                                {/* Tự Động Toàn Màn Hình Sau 30s */}
-                                                <div className="flex items-center justify-between pt-1 border-t border-white/5">
-                                                    <div>
-                                                        <div className="font-bold text-xs flex items-center gap-1.5 text-white">
-                                                            <Maximize size={14} className="text-emerald-400" />
-                                                            Tự Động Full Màn Hình Sau 30s
-                                                        </div>
-                                                        <div className="text-[10px] text-white/50">Tự mở toàn màn hình khi đang xem ổn định</div>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => {
-                                                            const next = !isAutoFullscreen30s;
-                                                            setIsAutoFullscreen30s(next);
-                                                            try {
-                                                                localStorage.setItem('h5n1_auto_fullscreen_30s', String(next));
-                                                            } catch {}
-                                                        }}
-                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                                            isAutoFullscreen30s ? 'bg-emerald-500' : 'bg-white/20'
-                                                        }`}
-                                                    >
-                                                        <span
-                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                                                                isAutoFullscreen30s ? 'translate-x-4' : 'translate-x-0'
-                                                            }`}
-                                                        />
-                                                    </button>
                                                 </div>
 
                                                 {/* Tự Động Bắt Kịp Trực Tiếp */}
