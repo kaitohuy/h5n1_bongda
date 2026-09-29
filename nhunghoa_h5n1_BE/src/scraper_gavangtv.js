@@ -11,7 +11,7 @@ let matchesCache = {
     data: [],
     timestamp: 0
 };
-let isFetchingInProgress = false;
+let activeFetchPromise = null;
 
 const COMMON_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -22,6 +22,7 @@ const COMMON_HEADERS = {
 
 // ── Master Static Fallback Commentators (Available 0ms Instant) ───────────────
 const MASTER_GAVANG_COMMENTATORS = [
+    { name: 'Gà Siêu Phệ', image: '' },
     { name: 'Gà Siêu Tốc', image: 'https://cdn.imgts.com/uploads/images/1778587966582-rk2hcgz996a.jpg' },
     { name: 'Gà Siêu Bệu', image: 'https://cdn.imgts.com/uploads/images/1778587936878-15cym0wmbia.jpg' },
     { name: 'Gà Siêu Gáy', image: 'https://cdn.imgts.com/uploads/images/1785246917752-jhzig7me0x.jpg' },
@@ -69,19 +70,19 @@ function formatMatchTimeDate(raw) {
  * Internal worker to refresh Gà Vàng TV data in background.
  */
 async function _doFetchGavangMatches() {
-    if (isFetchingInProgress) return;
-    isFetchingInProgress = true;
-    const now = Date.now();
+    if (activeFetchPromise) return activeFetchPromise;
 
-    try {
-        console.log(`[Gavang Worker] Background refreshing matches...`);
-        const res = await fetch(`${BASE_API_URL}/matches?webType=gavang&t=${now}`, {
-            headers: COMMON_HEADERS
-        });
+    activeFetchPromise = (async () => {
+        const now = Date.now();
+        try {
+            console.log(`[Gavang Worker] Background refreshing matches...`);
+            const res = await fetch(`${BASE_API_URL}/matches?webType=gavang&t=${now}`, {
+                headers: COMMON_HEADERS
+            });
 
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status} when fetching Gà Vàng matches`);
-        }
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status} when fetching Gà Vàng matches`);
+            }
 
         const json = await res.json();
         const rawMap = json.data || {};
@@ -181,8 +182,11 @@ async function _doFetchGavangMatches() {
     } catch (err) {
         console.warn(`[Gavang Worker] Background fetch error: ${err.message}`);
     } finally {
-        isFetchingInProgress = false;
+        activeFetchPromise = null;
     }
+    })();
+
+    return activeFetchPromise;
 }
 
 /**
@@ -194,13 +198,21 @@ async function fetchGavangMatches(forceRefresh = false) {
     const now = Date.now();
     const isStale = (now - matchesCache.timestamp) >= CACHE_TTL_MS;
 
+    // 1. If cache exists and is fresh, return immediately
     if (!forceRefresh && matchesCache.data.length > 0) {
-        if (isStale) {
+        if (isStale && !activeFetchPromise) {
             _doFetchGavangMatches().catch(() => {});
         }
         return matchesCache.data;
     }
 
+    // 2. If a fetch is already in flight, wait for it instead of returning empty []
+    if (activeFetchPromise) {
+        await activeFetchPromise;
+        return matchesCache.data;
+    }
+
+    // 3. Otherwise execute fetch and await results
     await _doFetchGavangMatches();
     return matchesCache.data;
 }
@@ -346,7 +358,7 @@ async function extractGavangStream(slug, requestedServer = '') {
         throw new Error(`Không tìm thấy luồng trực tiếp Gà Vàng: ${slug}`);
     }
 
-    let selectedServer = servers[0];
+    let selectedServer = null;
 
     if (requestedServer) {
         const found = servers.find(s => 
@@ -355,6 +367,18 @@ async function extractGavangStream(slug, requestedServer = '') {
             s.id === requestedServer
         );
         if (found) selectedServer = found;
+    }
+
+    // Tiên quyết: Nếu chưa có server được chọn hoặc chưa chỉ định, ưu tiên server chứa BLV Gà Siêu Phệ / Gà Siêu Phê
+    if (!selectedServer) {
+        selectedServer = servers.find(s => {
+            const norm = normalizeCommentator(s.commentator || s.label || '');
+            return norm.includes('gasieuphe') || norm.includes('sieuphe');
+        });
+    }
+
+    if (!selectedServer) {
+        selectedServer = servers[0];
     }
 
     return {

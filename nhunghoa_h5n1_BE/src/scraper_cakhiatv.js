@@ -13,7 +13,7 @@ let matchesCache = {
     data: [],
     timestamp: 0
 };
-let isFetchingInProgress = false;
+let activeFetchPromise = null;
 
 const COMMON_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -139,49 +139,52 @@ function parseMatchesFromCheerio($, matches, seenIds) {
  * Internal worker to refresh CakhiaTV data in background.
  */
 async function _doFetchCakhiaMatches() {
-    if (isFetchingInProgress) return;
-    isFetchingInProgress = true;
-    const now = Date.now();
+    if (activeFetchPromise) return activeFetchPromise;
 
-    try {
-        console.log(`[Cakhia Worker] Background refreshing matches...`);
-        const res = await fetch(`${BASE_URL}/sport/football/filter/all`, {
-            headers: COMMON_HEADERS
-        });
+    activeFetchPromise = (async () => {
+        const now = Date.now();
+        try {
+            console.log(`[Cakhia Worker] Background refreshing matches...`);
+            const res = await fetch(`${BASE_URL}/sport/football/filter/all`, {
+                headers: COMMON_HEADERS
+            });
 
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status} when fetching CakhiaTV filter/all`);
-        }
-
-        const json = await res.json();
-        const htmlChunks = Array.isArray(json.data?.htmls) ? json.data.htmls.join('') : Object.values(json.data?.htmls || {}).join('');
-        const $ = cheerio.load(htmlChunks);
-        const matches = [];
-        const seenIds = new Set();
-
-        parseMatchesFromCheerio($, matches, seenIds);
-
-        if (matches.length === 0) {
-            const homeRes = await fetch(BASE_URL, { headers: COMMON_HEADERS });
-            if (homeRes.ok) {
-                const homeHtml = await homeRes.text();
-                const $home = cheerio.load(homeHtml);
-                parseMatchesFromCheerio($home, matches, seenIds);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status} when fetching CakhiaTV filter/all`);
             }
-        }
 
-        if (matches.length > 0) {
-            matchesCache = {
-                data: matches,
-                timestamp: now
-            };
-            console.log(`[Cakhia Worker] ✓ Cache updated with ${matches.length} matches.`);
+            const json = await res.json();
+            const htmlChunks = Array.isArray(json.data?.htmls) ? json.data.htmls.join('') : Object.values(json.data?.htmls || {}).join('');
+            const $ = cheerio.load(htmlChunks);
+            const matches = [];
+            const seenIds = new Set();
+
+            parseMatchesFromCheerio($, matches, seenIds);
+
+            if (matches.length === 0) {
+                const homeRes = await fetch(BASE_URL, { headers: COMMON_HEADERS });
+                if (homeRes.ok) {
+                    const homeHtml = await homeRes.text();
+                    const $home = cheerio.load(homeHtml);
+                    parseMatchesFromCheerio($home, matches, seenIds);
+                }
+            }
+
+            if (matches.length > 0) {
+                matchesCache = {
+                    data: matches,
+                    timestamp: now
+                };
+                console.log(`[Cakhia Worker] ✓ Cache updated with ${matches.length} matches.`);
+            }
+        } catch (err) {
+            console.warn(`[Cakhia Worker] Background fetch error: ${err.message}`);
+        } finally {
+            activeFetchPromise = null;
         }
-    } catch (err) {
-        console.warn(`[Cakhia Worker] Background fetch error: ${err.message}`);
-    } finally {
-        isFetchingInProgress = false;
-    }
+    })();
+
+    return activeFetchPromise;
 }
 
 /**
@@ -193,16 +196,21 @@ async function fetchCakhiaMatches(forceRefresh = false) {
     const now = Date.now();
     const isStale = (now - matchesCache.timestamp) >= CACHE_TTL_MS;
 
-    // If cache exists and fresh, return immediately
+    // 1. If cache exists and fresh, return immediately
     if (!forceRefresh && matchesCache.data.length > 0) {
-        if (isStale) {
-            // Trigger non-blocking background revalidation
+        if (isStale && !activeFetchPromise) {
             _doFetchCakhiaMatches().catch(() => {});
         }
         return matchesCache.data;
     }
 
-    // If no cache, perform immediate fetch
+    // 2. If a fetch is already in flight, wait for it instead of returning empty []
+    if (activeFetchPromise) {
+        await activeFetchPromise;
+        return matchesCache.data;
+    }
+
+    // 3. If no cache, perform immediate fetch
     await _doFetchCakhiaMatches();
     return matchesCache.data;
 }
