@@ -68,7 +68,7 @@ const STATIC_MASTER_COLA = [
 }));
 
 const STATIC_MASTER_GAVANG = [
-    'Gà Siêu Tốc', 'Gà Siêu Bệu', 'Gà Siêu Gáy', 'Gà Siêu Kiêu', 'Gà Siêu Péo', 
+    'Gà Siêu Phệ', 'Gà Siêu Tốc', 'Gà Siêu Bệu', 'Gà Siêu Gáy', 'Gà Siêu Kiêu', 'Gà Siêu Péo', 
     'Gà Ô Long', 'Gà Siêu Son', 'Gà Chiến', 'Gà Chọi', 'Gà Con'
 ].map(name => ({
     id: `gavang_${normalizeCommentator(name)}`,
@@ -86,7 +86,7 @@ export default function CommentatorSettingsModal({
     isOpen, 
     onClose, 
     BE_URL = 'http://localhost:8000', 
-    currentSource = 'vtv6',
+    currentSource = 'gavangtv',
     onSourceChange,
     onSaveSuccess 
 }: CommentatorSettingsModalProps) {
@@ -272,13 +272,13 @@ export default function CommentatorSettingsModal({
     // Reset to default ranking
     const handleResetDefault = () => {
         setCommentators(defaultList);
-        setSelectedSource('vtv6');
+        setSelectedSource('gavangtv');
         localStorage.removeItem('h5n1_commentator_priority');
         localStorage.removeItem('h5n1_commentator_priority_colatv');
         localStorage.removeItem('h5n1_commentator_priority_cakhiatv');
         localStorage.removeItem('h5n1_commentator_priority_gavangtv');
-        localStorage.setItem('h5n1_default_source', 'vtv6');
-        if (onSourceChange) onSourceChange('vtv6');
+        localStorage.setItem('h5n1_default_source', 'gavangtv');
+        if (onSourceChange) onSourceChange('gavangtv');
         setSavedNotice(true);
         setTimeout(() => setSavedNotice(false), 2000);
         if (onSaveSuccess) onSaveSuccess();

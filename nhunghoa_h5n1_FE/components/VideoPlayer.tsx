@@ -74,9 +74,37 @@ export default function VideoPlayer({
     
     // Auto catch-up latency settings (Default: OFF as requested)
     const [isAutoCatchup, setIsAutoCatchup] = useState(false);
-    const [catchupThreshold, setCatchupThreshold] = useState(3); // Default 3s
+    const [catchupThreshold, setCatchupThreshold] = useState<number>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('h5n1_buffer_threshold');
+                if (saved && !isNaN(Number(saved))) return Number(saved);
+            } catch {}
+        }
+        return 10; // Default: 10s safe buffer for smooth playback on weak machines
+    });
+
+    // Auto fullscreen after 30s feature (Default: ON as requested)
+    const [isAutoFullscreen30s, setIsAutoFullscreen30s] = useState<boolean>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const saved = localStorage.getItem('h5n1_auto_fullscreen_30s');
+                if (saved !== null) return saved === 'true';
+            } catch {}
+        }
+        return true; // Default: ON
+    });
+
+    const autoFullscreenTriggeredRef = useRef<boolean>(false);
+    const playbackSecondsRef = useRef<number>(0);
 
     const useIframe = isIframePlayerUrl(streamUrl);
+
+    // Reset auto-fullscreen timer and flags when streamUrl changes
+    useEffect(() => {
+        autoFullscreenTriggeredRef.current = false;
+        playbackSecondsRef.current = 0;
+    }, [streamUrl, match?.id]);
 
     // Check PiP capability on mount
     useEffect(() => {
@@ -191,14 +219,14 @@ export default function VideoPlayer({
                         enableWorker: true,
                         lowLatencyMode: false,
                         backBufferLength: 30,
-                        maxBufferLength: 30,
+                        maxBufferLength: Math.max(30, catchupThreshold * 3),
                         maxMaxBufferLength: 60,
                         maxBufferSize: 60 * 1000 * 1000,
                         manifestLoadingMaxRetry: 5,
                         levelLoadingMaxRetry: 5,
                         fragLoadingMaxRetry: 5,
-                        liveSyncDurationCount: 3,
-                        liveMaxLatencyDurationCount: 10,
+                        liveSyncDuration: catchupThreshold,
+                        liveMaxLatencyDuration: catchupThreshold + 10,
                         liveDurationInfinity: true,
                     });
                     hlsRef.current = hls;
@@ -304,6 +332,27 @@ export default function VideoPlayer({
             video.removeEventListener('volumechange', onVolumeChange);
         };
     }, [isAutoCatchup, catchupThreshold]);
+
+    // ── Auto Fullscreen after 30s of Playing ──────────────────────────────────
+    useEffect(() => {
+        if (!isAutoFullscreen30s || autoFullscreenTriggeredRef.current || !isPlaying) return;
+
+        const interval = setInterval(() => {
+            const video = videoRef.current;
+            if (!video || video.paused || autoFullscreenTriggeredRef.current) return;
+
+            playbackSecondsRef.current += 1;
+            if (playbackSecondsRef.current >= 30) {
+                autoFullscreenTriggeredRef.current = true;
+                clearInterval(interval);
+                if (!document.fullscreenElement) {
+                    handleFullScreen();
+                }
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [isAutoFullscreen30s, isPlaying]);
 
     // ── Keyboard Shortcuts (Space, F, M, P) ──────────────────────────────────
     useEffect(() => {
@@ -770,15 +819,78 @@ export default function VideoPlayer({
                                                 </div>
                                             </div>
 
-                                            {/* 3. Auto Catch-up (Tự động bắt kịp trực tiếp) */}
-                                            <div className="space-y-2.5 pt-1.5 border-t border-white/10">
+                                            {/* 3. Vùng Đệm An Toàn (Buffer Target) & Tự Động Bắt Kịp */}
+                                            <div className="space-y-3 pt-1.5 border-t border-white/10">
+                                                {/* Vùng đệm an toàn selector */}
                                                 <div className="flex items-center justify-between">
+                                                    <div>
+                                                        <div className="font-bold text-xs flex items-center gap-1.5 text-white">
+                                                            <Radio size={14} className="text-amber-400" />
+                                                            Vùng Đệm Buffer:
+                                                        </div>
+                                                        <div className="text-[10px] text-white/50">Mặc định 10s giúp máy yếu xem mượt mà</div>
+                                                    </div>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={catchupThreshold}
+                                                            onChange={(e) => {
+                                                                const val = Math.max(3, Number(e.target.value));
+                                                                setCatchupThreshold(val);
+                                                                try {
+                                                                    localStorage.setItem('h5n1_buffer_threshold', String(val));
+                                                                } catch {}
+                                                            }}
+                                                            className="bg-slate-900 border border-white/20 text-amber-300 text-xs font-bold rounded-lg px-2.5 py-1 pr-6 focus:outline-none focus:border-amber-500 cursor-pointer appearance-none shadow-sm"
+                                                        >
+                                                            <option value={10} className="bg-slate-900 text-white">10s (Mặc định - Ổn định)</option>
+                                                            <option value={8} className="bg-slate-900 text-white">8s (Mạng yếu)</option>
+                                                            <option value={5} className="bg-slate-900 text-white">5s (Mạng trung bình)</option>
+                                                            <option value={3} className="bg-slate-900 text-white">3s (Siêu tốc / Thấp nhất)</option>
+                                                            <option value={15} className="bg-slate-900 text-white">15s (Chống giật tối đa)</option>
+                                                        </select>
+                                                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40 text-[10px]">
+                                                            ▾
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Tự Động Toàn Màn Hình Sau 30s */}
+                                                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                                                    <div>
+                                                        <div className="font-bold text-xs flex items-center gap-1.5 text-white">
+                                                            <Maximize size={14} className="text-emerald-400" />
+                                                            Tự Động Full Màn Hình Sau 30s
+                                                        </div>
+                                                        <div className="text-[10px] text-white/50">Tự mở toàn màn hình khi đang xem ổn định</div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            const next = !isAutoFullscreen30s;
+                                                            setIsAutoFullscreen30s(next);
+                                                            try {
+                                                                localStorage.setItem('h5n1_auto_fullscreen_30s', String(next));
+                                                            } catch {}
+                                                        }}
+                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                                            isAutoFullscreen30s ? 'bg-emerald-500' : 'bg-white/20'
+                                                        }`}
+                                                    >
+                                                        <span
+                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                                                isAutoFullscreen30s ? 'translate-x-4' : 'translate-x-0'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                </div>
+
+                                                {/* Tự Động Bắt Kịp Trực Tiếp */}
+                                                <div className="flex items-center justify-between pt-1 border-t border-white/5">
                                                     <div>
                                                         <div className="font-bold text-xs flex items-center gap-1.5 text-white">
                                                             <FastForward size={14} className="text-rose-400" />
                                                             Tự Động Bắt Kịp Trực Tiếp
                                                         </div>
-                                                        <div className="text-[10px] text-white/50">Tăng tốc 1.05x để đuổi kịp khi bị trễ</div>
+                                                        <div className="text-[10px] text-white/50">Tăng tốc 1.05x để đuổi kịp khi bị trễ quá vùng đệm</div>
                                                     </div>
                                                     <button
                                                         onClick={() => setIsAutoCatchup(!isAutoCatchup)}
@@ -793,34 +905,6 @@ export default function VideoPlayer({
                                                         />
                                                     </button>
                                                 </div>
-
-                                                {/* Threshold Config (Khi Bật) */}
-                                                {isAutoCatchup && (
-                                                    <div className="bg-white/5 p-2.5 rounded-xl border border-white/10 space-y-2 animate-in fade-in zoom-in-95 duration-150">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[11px] font-semibold text-white/80">Vùng đệm an toàn:</span>
-                                                            <div className="relative">
-                                                                <select
-                                                                    value={catchupThreshold}
-                                                                    onChange={(e) => setCatchupThreshold(Math.max(3, Number(e.target.value)))}
-                                                                    className="bg-slate-900 border border-white/20 text-rose-300 text-xs font-bold rounded-lg px-2.5 py-1 pr-6 focus:outline-none focus:border-rose-500 cursor-pointer appearance-none shadow-sm"
-                                                                >
-                                                                    <option value={3} className="bg-slate-900 text-white">3s (Khuyên dùng)</option>
-                                                                    <option value={4} className="bg-slate-900 text-white">4s</option>
-                                                                    <option value={5} className="bg-slate-900 text-white">5s (Mạng trung bình)</option>
-                                                                    <option value={8} className="bg-slate-900 text-white">8s (Mạng yếu)</option>
-                                                                    <option value={10} className="bg-slate-900 text-white">10s (Chống giật tối đa)</option>
-                                                                </select>
-                                                                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40 text-[10px]">
-                                                                    ▾
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <p className="text-[10px] text-white/50 leading-relaxed">
-                                                            💡 <span className="text-amber-300/90 font-medium">Gợi ý:</span> Vùng đệm tối thiểu 3s giúp video phát 60fps mượt mà, tránh bị khựng do chờ nạp gói dữ liệu mới từ server.
-                                                        </p>
-                                                    </div>
-                                                )}
                                             </div>
 
                                             {/* 4. Custom Zoom Slider (100% - 150%) */}

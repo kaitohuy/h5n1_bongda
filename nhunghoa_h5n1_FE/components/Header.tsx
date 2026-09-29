@@ -14,7 +14,7 @@ interface HeaderProps {
     onSettingsChanged?: () => void;
 }
 
-export default function Header({ onLogoClick, currentSource = 'vtv6', onSourceChange, onSettingsChanged }: HeaderProps) {
+export default function Header({ onLogoClick, currentSource = 'gavangtv', onSourceChange, onSettingsChanged }: HeaderProps) {
     const { theme, setTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);

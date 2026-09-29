@@ -37,7 +37,7 @@ const VTV6_MATCH_DATA: Match = {
 };
 
 export default function Home() {
-  // ── Source state: Initialized with lazy function to avoid VTV6 -> Gavang jump ──
+  // ── Source state: Default is gavangtv ──
   const [currentSource, setCurrentSource] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -47,7 +47,7 @@ export default function Home() {
         }
       } catch {}
     }
-    return 'vtv6';
+    return 'gavangtv';
   });
 
   const [mounted, setMounted] = useState(false);
@@ -83,7 +83,7 @@ export default function Home() {
   const [matches, setMatches] = useState<Match[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const savedSrc = localStorage.getItem('h5n1_default_source') || 'vtv6';
+        const savedSrc = localStorage.getItem('h5n1_default_source') || 'gavangtv';
         if (savedSrc !== 'vtv6') {
           const cached = localStorage.getItem(`h5n1_cached_matches_${savedSrc}`);
           if (cached) {
@@ -97,7 +97,22 @@ export default function Home() {
   });
 
   const [hasMoreBackend, setHasMoreBackend] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedSrc = localStorage.getItem('h5n1_default_source') || 'gavangtv';
+        if (savedSrc !== 'vtv6') {
+          const cached = localStorage.getItem(`h5n1_cached_matches_${savedSrc}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return false;
+          }
+          return true; // Cold start without cache -> show skeleton loader
+        }
+      } catch {}
+    }
+    return true;
+  });
   const [isFetchingMore, setIsFetchingMore] = useState<'hot' | 'live' | null>(null);
   const [error, setError] = useState('');
 
@@ -212,8 +227,19 @@ export default function Home() {
 
       setMatches(raw);
       try {
-        localStorage.setItem(`h5n1_cached_matches_${activeSrc}`, JSON.stringify(raw));
+        if (raw.length > 0) {
+          localStorage.setItem(`h5n1_cached_matches_${activeSrc}`, JSON.stringify(raw));
+        }
       } catch {}
+
+      // If initial fetch returned 0 matches, auto-retry once after 1.5s
+      if (raw.length === 0 && !loadMore) {
+        setTimeout(() => {
+          if (currentSourceRef.current === activeSrc) {
+            fetchAllMatches(false, activeSrc);
+          }
+        }, 1500);
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       if (currentSourceRef.current === activeSrc) {
@@ -341,29 +367,50 @@ export default function Home() {
           }
 
           if (!activeServer && data.servers && data.servers.length > 0) {
-            let priorityList: string[] = ['gasieutoc', 'gasieubeu', 'gasieugay', 'gialang', 'hiro', 'roy', 'johan', 'max'];
-            try {
-              const srcKey = `h5n1_commentator_priority_${activeMatch.source || currentSource}`;
-              const saved = localStorage.getItem(srcKey) || localStorage.getItem('h5n1_commentator_priority');
-              if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed) && parsed.length > 0) priorityList = parsed;
-              }
-            } catch {}
+            let chosenServer = null;
 
-            // Find first server matching priority order
-            let matchedServer = null;
-            for (const pNorm of priorityList) {
-              matchedServer = data.servers.find((s: any) => {
-                const comm = typeof s === 'string' ? s : (s.commentator || s.label || '');
-                const sNorm = normalizeCommentator(comm);
-                return sNorm === pNorm || sNorm.includes(pNorm) || pNorm.includes(sNorm);
-              });
-              if (matchedServer) break;
+            // ── ĐIỀU KIỆN TIÊN QUYẾT ──
+            // Ưu tiên cao nhất: Server có chứa BLV "gà siêu phệ" / "gà siêu phê"
+            // (Chỉ cần chuỗi có chứa, chấp nhận cả trường hợp 2 BLV cùng nói ví dụ "Gà Siêu Phê + Gà Siêu ...")
+            const sieuPheServer = data.servers.find((s: any) => {
+              const comm = typeof s === 'string' ? s : (s.commentator || s.label || '');
+              const sNorm = normalizeCommentator(comm);
+              return sNorm.includes('gasieuphe') || sNorm.includes('sieuphe');
+            });
+
+            if (sieuPheServer) {
+              chosenServer = sieuPheServer;
+            } else {
+              // Nếu KHÔNG có "gà siêu phệ", mới chuyển sang các setting mà user thiết lập
+              let priorityList: string[] = ['gasieutoc', 'gasieubeu', 'gasieugay', 'gialang', 'hiro', 'roy', 'johan', 'max'];
+              try {
+                const srcKey = `h5n1_commentator_priority_${activeMatch.source || currentSource}`;
+                const saved = localStorage.getItem(srcKey) || localStorage.getItem('h5n1_commentator_priority');
+                if (saved) {
+                  const parsed = JSON.parse(saved);
+                  if (Array.isArray(parsed) && parsed.length > 0) priorityList = parsed;
+                }
+              } catch {}
+
+              // Find first server matching priority order
+              for (const pNorm of priorityList) {
+                const matched = data.servers.find((s: any) => {
+                  const comm = typeof s === 'string' ? s : (s.commentator || s.label || '');
+                  const sNorm = normalizeCommentator(comm);
+                  return sNorm === pNorm || sNorm.includes(pNorm) || pNorm.includes(sNorm);
+                });
+                if (matched) {
+                  chosenServer = matched;
+                  break;
+                }
+              }
+
+              // Fallback to first available commentator server or first server
+              if (!chosenServer) {
+                chosenServer = data.servers[0];
+              }
             }
 
-            // Fallback to first available commentator server or first server
-            const chosenServer = matchedServer || data.servers[0];
             if (chosenServer) {
               const prefLabel = typeof chosenServer === 'string' 
                 ? chosenServer 
