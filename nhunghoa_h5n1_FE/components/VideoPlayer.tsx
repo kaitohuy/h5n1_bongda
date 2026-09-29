@@ -58,7 +58,9 @@ export default function VideoPlayer({
     const [isPlaying, setIsPlaying] = useState(true);
     const [volume, setVolume] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
-    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isNativeFullscreen, setIsNativeFullscreen] = useState(false);
+    const [isViewFullscreen, setIsViewFullscreen] = useState(false);
+    const isFullscreen = isNativeFullscreen || isViewFullscreen;
     const [showControls, setShowControls] = useState(true);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
@@ -156,10 +158,73 @@ export default function VideoPlayer({
         triggerControlsActivity();
     }, [triggerControlsActivity]);
 
+    // ── Fullscreen Controls ──────────────────────────────────────────────────
+    const enterFullScreen = useCallback(() => {
+        setIsViewFullscreen(true);
+
+        const targetElement = containerRef.current;
+        if (targetElement) {
+            try {
+                if (targetElement.requestFullscreen) {
+                    const req = targetElement.requestFullscreen();
+                    if (req && req.catch) {
+                        req.catch(() => {
+                            // User gesture policy or device denied native requestFullscreen
+                            // isViewFullscreen is already true, so CSS full viewport is active!
+                        });
+                    }
+                } else if ((targetElement as any).webkitRequestFullscreen) {
+                    (targetElement as any).webkitRequestFullscreen();
+                }
+            } catch {
+                // Silently fallback to isViewFullscreen
+            }
+        }
+
+        try {
+            if (screen.orientation && (screen.orientation as any).lock) {
+                (screen.orientation as any).lock('landscape').catch(() => {});
+            }
+        } catch {}
+    }, []);
+
+    const exitFullScreen = useCallback(() => {
+        setIsViewFullscreen(false);
+        setIsNativeFullscreen(false);
+
+        if (document.fullscreenElement) {
+            try {
+                document.exitFullscreen().catch(() => {});
+            } catch {}
+        } else if ((document as any).webkitFullscreenElement) {
+            try {
+                (document as any).webkitExitFullscreen();
+            } catch {}
+        }
+
+        try {
+            if (screen.orientation && (screen.orientation as any).unlock) {
+                (screen.orientation as any).unlock();
+            }
+        } catch {}
+    }, []);
+
+    const handleFullScreen = useCallback(() => {
+        if (isFullscreen) {
+            exitFullScreen();
+        } else {
+            enterFullScreen();
+        }
+    }, [isFullscreen, enterFullScreen, exitFullScreen]);
+
     // Handle Fullscreen Change Detection
     useEffect(() => {
         const handleFullscreenChange = () => {
-            setIsFullscreen(Boolean(document.fullscreenElement));
+            const isNative = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+            setIsNativeFullscreen(isNative);
+            if (!isNative) {
+                setIsViewFullscreen(false);
+            }
         };
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
@@ -168,6 +233,17 @@ export default function VideoPlayer({
             document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
         };
     }, []);
+
+    // Escape key to exit View Fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isFullscreen) {
+                exitFullScreen();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isFullscreen, exitFullScreen]);
 
     // ── Click Outside to Close Settings ──────────────────────────────────────
     useEffect(() => {
@@ -362,21 +438,24 @@ export default function VideoPlayer({
         if (!isAutoFullscreen30s || autoFullscreenTriggeredRef.current || !isPlaying) return;
 
         const interval = setInterval(() => {
+            if (autoFullscreenTriggeredRef.current) {
+                clearInterval(interval);
+                return;
+            }
+
             const video = videoRef.current;
-            if (!video || video.paused || autoFullscreenTriggeredRef.current) return;
+            if (!useIframe && video && video.paused) return;
 
             playbackSecondsRef.current += 1;
             if (playbackSecondsRef.current >= 30) {
                 autoFullscreenTriggeredRef.current = true;
                 clearInterval(interval);
-                if (!document.fullscreenElement) {
-                    handleFullScreen();
-                }
+                enterFullScreen();
             }
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [isAutoFullscreen30s, isPlaying]);
+    }, [isAutoFullscreen30s, isPlaying, useIframe, enterFullScreen]);
 
     // ── Keyboard Shortcuts (Space, F, M, P) ──────────────────────────────────
     useEffect(() => {
@@ -484,35 +563,6 @@ export default function VideoPlayer({
         }
     };
 
-    const handleFullScreen = () => {
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => {});
-            try {
-                if (screen.orientation && (screen.orientation as any).unlock) {
-                    (screen.orientation as any).unlock();
-                }
-            } catch {}
-            return;
-        }
-
-        const targetElement = videoWrapperRef.current || videoRef.current || containerRef.current;
-        if (targetElement) {
-            if (targetElement.requestFullscreen) {
-                targetElement.requestFullscreen().catch(() => {});
-            } else if ((targetElement as any).webkitRequestFullscreen) {
-                (targetElement as any).webkitRequestFullscreen();
-            } else if ((targetElement as any).msRequestFullscreen) {
-                (targetElement as any).msRequestFullscreen();
-            }
-        }
-
-        try {
-            if (screen.orientation && (screen.orientation as any).lock) {
-                (screen.orientation as any).lock('landscape').catch(() => {});
-            }
-        } catch {}
-    };
-
     // Calculate progress percentage
     let progressPct = 100;
     if (videoRef.current?.seekable && videoRef.current.seekable.length > 0) {
@@ -528,126 +578,99 @@ export default function VideoPlayer({
     return (
         <div 
             ref={containerRef} 
-            className="relative w-full rounded-2xl overflow-hidden bg-black border border-border shadow-2xl flex flex-col group select-none"
+            className={`w-full overflow-hidden bg-black select-none transition-all duration-200 flex flex-col justify-center items-center ${
+                isFullscreen 
+                    ? 'fixed inset-0 z-[99999] w-screen h-screen rounded-none' 
+                    : 'relative rounded-2xl border border-border shadow-2xl'
+            }`}
+            onMouseMove={handleMouseMove}
         >
-            {/* ────────── Player top bar ────────── */}
-            <div className={`bg-[var(--header-bg)] dark:bg-slate-900 px-4 py-2.5 flex items-center justify-between border-b border-[var(--border)] text-[var(--foreground)] z-20 gap-2 flex-wrap sm:flex-nowrap backdrop-blur-md ${
-                isFullscreen ? 'hidden' : 'flex'
-            }`}>
-                {/* Match title & status badge */}
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                        Trực tiếp
-                    </span>
-                    <span className="font-bold text-xs sm:text-sm truncate text-[var(--foreground)]">
-                        {match.home} vs {match.away}
-                    </span>
+            {/* ────────── Player top bar (Hidden completely in Fullscreen) ────────── */}
+            {!isFullscreen && (
+                <div className="w-full bg-[var(--header-bg)] dark:bg-slate-900 px-4 py-2.5 flex items-center justify-between border-b border-[var(--border)] text-[var(--foreground)] z-20 gap-2 flex-wrap sm:flex-nowrap backdrop-blur-md">
+                    {/* Match title & status badge */}
+                    <div className="flex items-center gap-2 min-w-0">
+                        <span className="shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                            Trực tiếp
+                        </span>
+                        <span className="font-bold text-xs sm:text-sm truncate text-[var(--foreground)]">
+                            {match.home} vs {match.away}
+                        </span>
+                    </div>
+
+                    {/* Right controls: Server & Commentator selector, Settings, Fullscreen, Close */}
+                    <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        {/* Server / BLV selector */}
+                        {availableServers.length > 0 && (
+                            <div className="relative">
+                                <select
+                                    value={activeServer}
+                                    onChange={(e) => onServerChange(e.target.value)}
+                                    className="bg-[var(--surface)] dark:bg-slate-800 border border-[var(--border)] text-[var(--foreground)] text-xs font-bold rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:border-accent cursor-pointer appearance-none shadow-sm max-w-[140px] sm:max-w-[180px] truncate"
+                                    title="Đổi Server / Đổi BLV"
+                                >
+                                    {availableServers.map((s) => (
+                                        <option key={s} value={s} className="bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] py-1">
+                                            {s}
+                                        </option>
+                                    ))}
+                                </select>
+                                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--foreground)] opacity-50 text-[10px]">
+                                    ▾
+                                </span>
+                            </div>
+                        )}
+
+                        {/* Video Settings Button */}
+                        <button
+                            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                            className={`p-1.5 rounded-lg border transition-all ${
+                                isSettingsOpen || isSuperClear || zoomLevel > 100 || isAutoCatchup
+                                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 shadow-sm'
+                                    : 'bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)]'
+                            }`}
+                            title="Cài đặt video (Độ nét, Zoom, Super Clear, Bắt kịp Live)"
+                            aria-label="Cài đặt video"
+                        >
+                            <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
+                        </button>
+
+                        {/* Fullscreen Button: Same styling as other buttons, no gradient */}
+                        <button
+                            onClick={handleFullScreen}
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)] active:scale-95 transition-all"
+                            title="Toàn màn hình (F)"
+                            aria-label="Toàn màn hình"
+                        >
+                            <Maximize size={14} />
+                            <span>Toàn màn hình</span>
+                        </button>
+
+                        {/* Close Button: Icon only as requested */}
+                        <button
+                            onClick={onClose}
+                            className="shrink-0 p-1.5 sm:p-2 rounded-lg bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all flex items-center justify-center"
+                            title="Đóng video"
+                            aria-label="Đóng video"
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
                 </div>
-
-                {/* Right controls: Server & Commentator selector, Settings, Fullscreen, Close */}
-                <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                    {/* Server / BLV selector */}
-                    {availableServers.length > 0 && (
-                        <div className="relative">
-                            <select
-                                value={activeServer}
-                                onChange={(e) => onServerChange(e.target.value)}
-                                className="bg-[var(--surface)] dark:bg-slate-800 border border-[var(--border)] text-[var(--foreground)] text-xs font-bold rounded-lg px-2.5 py-1.5 pr-7 focus:outline-none focus:border-accent cursor-pointer appearance-none shadow-sm max-w-[140px] sm:max-w-[180px] truncate"
-                                title="Đổi Server / Đổi BLV"
-                            >
-                                {availableServers.map((s) => (
-                                    <option key={s} value={s} className="bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] py-1">
-                                        {s}
-                                    </option>
-                                ))}
-                            </select>
-                            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[var(--foreground)] opacity-50 text-[10px]">
-                                ▾
-                            </span>
-                        </div>
-                    )}
-
-                    {/* Video Settings Button */}
-                    <button
-                        onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                            isSettingsOpen || isSuperClear || zoomLevel > 100 || isAutoCatchup
-                                ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 shadow-sm'
-                                : 'bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)]'
-                        }`}
-                        title="Cài đặt video (Độ nét, Zoom, Super Clear, Bắt kịp Live)"
-                        aria-label="Cài đặt video"
-                    >
-                        <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
-                    </button>
-
-                    {/* Fullscreen Button: Same styling as other buttons, no gradient */}
-                    <button
-                        onClick={handleFullScreen}
-                        className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)] active:scale-95 transition-all"
-                        title={isFullscreen ? 'Thu nhỏ (F)' : 'Toàn màn hình (F)'}
-                        aria-label={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
-                    >
-                        {isFullscreen ? <Minimize size={14} /> : <Maximize size={14} />}
-                        <span>{isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}</span>
-                    </button>
-
-                    {/* Close Button: Icon only as requested */}
-                    <button
-                        onClick={onClose}
-                        className="shrink-0 p-1.5 sm:p-2 rounded-lg bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-red-500/20 hover:text-red-500 hover:border-red-500/50 transition-all flex items-center justify-center"
-                        title="Đóng video"
-                        aria-label="Đóng video"
-                    >
-                        <X size={15} />
-                    </button>
-                </div>
-            </div>
+            )}
 
             {/* ────────── Video area with Custom Floating Overlay Controls ────────── */}
             <div 
                 ref={videoWrapperRef}
-                className="relative w-full aspect-video bg-black rounded-b-2xl overflow-hidden flex items-center justify-center" 
+                className={`relative w-full bg-black overflow-hidden flex items-center justify-center ${
+                    isFullscreen ? 'flex-1 h-full' : 'aspect-video rounded-b-2xl'
+                }`} 
                 style={{ isolation: 'isolate' }}
-                onClick={() => {
-                    if (!useIframe) toggleControls();
-                }}
-                onMouseMove={handleMouseMove}
-                onDoubleClick={handleFullScreen}
             >
-                {/* ── Fullscreen Sleek Top Bar (Only visible in Fullscreen when controls are active) ── */}
-                {isFullscreen && (
-                    <div 
-                        className={`absolute top-0 left-0 right-0 z-40 px-4 py-3 bg-gradient-to-b from-black/85 via-black/40 to-transparent flex items-center justify-between text-white transition-all duration-300 ${
-                            showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
-                        }`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="shrink-0 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                            <span className="font-bold text-xs sm:text-sm truncate drop-shadow">
-                                {match.home} vs {match.away}
-                            </span>
-                            {activeServer && (
-                                <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-white/15 text-white/90 border border-white/20 font-medium">
-                                    {activeServer}
-                                </span>
-                            )}
-                        </div>
-                        <button
-                            onClick={handleFullScreen}
-                            className="shrink-0 ml-3 p-1.5 px-2.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 text-white border border-white/20 backdrop-blur-md transition-all flex items-center gap-1.5 text-xs font-bold"
-                            title="Thu nhỏ màn hình (Esc)"
-                        >
-                            <Minimize size={14} />
-                            <span>Thu nhỏ</span>
-                        </button>
-                    </div>
-                )}
                 {/* Loading / Error overlay */}
                 {(isLoading || isError) && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white z-20 bg-black/85 pointer-events-none">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white z-10 bg-black/85 pointer-events-none">
                         {isError ? (
                             <>
                                 <span className="text-4xl">⚠️</span>
@@ -689,7 +712,7 @@ export default function VideoPlayer({
                     /* ── Native video element without native controls ── */
                     <video 
                         ref={videoRef} 
-                        className={`w-full h-full ${isFullscreen ? 'rounded-none' : 'rounded-b-2xl'} object-contain transition-transform duration-150`} 
+                        className={`w-full h-full ${isFullscreen ? 'rounded-none' : 'rounded-b-2xl'} object-contain pointer-events-none transition-transform duration-150`} 
                         style={{
                             transform: `scale(${zoomLevel / 100})`,
                             transformOrigin: 'center center',
@@ -700,6 +723,45 @@ export default function VideoPlayer({
                         }}
                         playsInline 
                     />
+                )}
+
+                {/* ── Transparent Click/Tap Overlay Layer (Intercepts all clicks/taps, guarantees tap toggle works!) ── */}
+                {!useIframe && (
+                    <div 
+                        className="absolute inset-0 z-20 cursor-pointer"
+                        onClick={toggleControls}
+                        onDoubleClick={handleFullScreen}
+                    />
+                )}
+
+                {/* ── Fullscreen Sleek Top Bar (Only visible in Fullscreen when controls are active) ── */}
+                {isFullscreen && (
+                    <div 
+                        className={`absolute top-0 left-0 right-0 z-30 px-4 py-3 bg-gradient-to-b from-black/85 via-black/40 to-transparent flex items-center justify-between text-white transition-all duration-300 ${
+                            showControls ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
+                        }`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="shrink-0 w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            <span className="font-bold text-xs sm:text-sm truncate drop-shadow">
+                                {match.home} vs {match.away}
+                            </span>
+                            {activeServer && (
+                                <span className="shrink-0 text-[11px] px-2 py-0.5 rounded-full bg-white/15 text-white/90 border border-white/20 font-medium">
+                                    {activeServer}
+                                </span>
+                            )}
+                        </div>
+                        <button
+                            onClick={handleFullScreen}
+                            className="shrink-0 ml-3 p-1.5 px-2.5 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 text-white border border-white/30 backdrop-blur-md transition-all flex items-center gap-1.5 text-xs font-bold"
+                            title="Thu nhỏ màn hình (Esc)"
+                        >
+                            <Minimize size={14} />
+                            <span>Thu nhỏ</span>
+                        </button>
+                    </div>
                 )}
 
                 {/* ────────── CUSTOM FLOATING BOTTOM CONTROLS BAR ────────── */}
