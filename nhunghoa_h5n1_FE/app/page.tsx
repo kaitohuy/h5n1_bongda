@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Loader2, ChevronDown, Flame, Calendar, Clock, ListFilter, Tv, Headphones } from 'lucide-react';
+import { Loader2, ChevronDown, Flame, Calendar, Clock, ListFilter, Tv, Headphones, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import Header from '@/components/Header';
 import MatchCard from '@/components/MatchCard';
 import VideoPlayer from '@/components/VideoPlayer';
@@ -116,6 +116,27 @@ export default function Home() {
   const [isFetchingMore, setIsFetchingMore] = useState<'hot' | 'live' | null>(null);
   const [error, setError] = useState('');
 
+  // ── Sync Snackbar States (Hiển thị data cũ kèm snackbar cập nhật data mới) ─
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'updating' | 'success' | 'error'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedSrc = localStorage.getItem('h5n1_default_source') || 'gavangtv';
+        if (savedSrc !== 'vtv6') {
+          const cached = localStorage.getItem(`h5n1_cached_matches_${savedSrc}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return 'updating';
+          }
+        }
+      } catch {}
+    }
+    return 'idle';
+  });
+  const [syncMsg, setSyncMsg] = useState<string>(
+    'Đang hiển thị các trận đấu cũ. Các trận đấu mới đang được cập nhật...'
+  );
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // ── Tab Filter State ────────────────────────────────────────────────────────
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [visibleCount, setVisibleCount] = useState(15);
@@ -126,10 +147,11 @@ export default function Home() {
   }, [activeFilter]);
 
   // ── Fetch matches from BE with strict Source Guard & Cancellation ───────────
-  const fetchAllMatches = useCallback(async (loadMore: boolean = false, overrideSource?: string) => {
+  const fetchAllMatches = useCallback(async (loadMore: boolean = false, overrideSource?: string, isBackgroundPoll: boolean = false) => {
     const activeSrc = overrideSource || currentSourceRef.current;
     if (activeSrc === 'vtv6') {
       setIsLoading(false);
+      setSyncStatus('idle');
       return;
     }
 
@@ -142,14 +164,22 @@ export default function Home() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             setMatches(parsed);
             setIsLoading(false);
+            if (!isBackgroundPoll) {
+              if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+              setSyncStatus('updating');
+              setSyncMsg('Đang hiển thị các trận đấu cũ. Các trận đấu mới đang được cập nhật...');
+            }
           } else {
             setIsLoading(true);
+            if (!isBackgroundPoll) setSyncStatus('idle');
           }
         } else {
           setIsLoading(true);
+          if (!isBackgroundPoll) setSyncStatus('idle');
         }
       } catch {
         setIsLoading(true);
+        if (!isBackgroundPoll) setSyncStatus('idle');
       }
     }
 
@@ -232,11 +262,26 @@ export default function Home() {
         }
       } catch {}
 
+      // Khi fetch thành công, nếu trước đó đang hiển thị snackbar cập nhật từ cache cũ -> đổi sang báo thành công
+      if (!loadMore && !isBackgroundPoll && currentSourceRef.current === activeSrc) {
+        setSyncStatus(prev => {
+          if (prev === 'updating') {
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+            setSyncMsg('Đã cập nhật danh sách trận đấu mới nhất!');
+            syncTimeoutRef.current = setTimeout(() => {
+              setSyncStatus('idle');
+            }, 3000);
+            return 'success';
+          }
+          return prev;
+        });
+      }
+
       // If initial fetch returned 0 matches, auto-retry once after 1.5s
       if (raw.length === 0 && !loadMore) {
         setTimeout(() => {
           if (currentSourceRef.current === activeSrc) {
-            fetchAllMatches(false, activeSrc);
+            fetchAllMatches(false, activeSrc, false);
           }
         }, 1500);
       }
@@ -244,6 +289,19 @@ export default function Home() {
       if (err.name === 'AbortError') return;
       if (currentSourceRef.current === activeSrc) {
         setError('Không kết nối được đến backend. Kiểm tra BE đang chạy trên cổng 8000.');
+        if (!loadMore && !isBackgroundPoll) {
+          setSyncStatus(prev => {
+            if (prev === 'updating') {
+              if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+              setSyncMsg('Không thể cập nhật trận đấu mới. Vui lòng thử lại!');
+              syncTimeoutRef.current = setTimeout(() => {
+                setSyncStatus('idle');
+              }, 4000);
+              return 'error';
+            }
+            return prev;
+          });
+        }
       }
     } finally {
       if (!loadMore && currentSourceRef.current === activeSrc) {
@@ -255,19 +313,20 @@ export default function Home() {
   // Fetch when source changes
   useEffect(() => {
     if (currentSource !== 'vtv6') {
-      fetchAllMatches(false, currentSource);
+      fetchAllMatches(false, currentSource, false);
     } else {
       setActiveMatch(null);
       setIsLoading(false);
+      setSyncStatus('idle');
     }
   }, [currentSource, fetchAllMatches]);
 
-  // Periodic background refresh every 30s
+  // Periodic background refresh every 30s (âm thầm, không hiển thị snackbar làm phiền user)
   useEffect(() => {
     if (currentSource === 'vtv6') return;
     const id = setInterval(() => {
       if (currentSourceRef.current !== 'vtv6') {
-        fetchAllMatches(false, currentSourceRef.current);
+        fetchAllMatches(false, currentSourceRef.current, true);
       }
     }, 30_000);
     return () => clearInterval(id);
@@ -283,6 +342,7 @@ export default function Home() {
     if (src === 'vtv6') {
       setMatches([]);
       setIsLoading(false);
+      setSyncStatus('idle');
     } else {
       // 0ms instant display from cache
       try {
@@ -292,19 +352,25 @@ export default function Home() {
           if (Array.isArray(parsed) && parsed.length > 0) {
             setMatches(parsed);
             setIsLoading(false);
+            if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+            setSyncStatus('updating');
+            setSyncMsg('Đang hiển thị các trận đấu cũ. Các trận đấu mới đang được cập nhật...');
           } else {
             setMatches([]);
             setIsLoading(true);
+            setSyncStatus('idle');
           }
         } else {
           setMatches([]);
           setIsLoading(true);
+          setSyncStatus('idle');
         }
       } catch {
         setMatches([]);
         setIsLoading(true);
+        setSyncStatus('idle');
       }
-      fetchAllMatches(false, src);
+      fetchAllMatches(false, src, false);
     }
   };
 
@@ -555,6 +621,42 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-accent selection:text-white">
+      {/* ── Center Top Snackbar: Báo trạng thái cập nhật trận đấu ── */}
+      {syncStatus !== 'idle' && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 pointer-events-auto max-w-[92vw] sm:max-w-md w-auto animate-in fade-in slide-in-from-top-3 duration-200">
+          <div
+            className={`flex items-center gap-2.5 px-4 py-2 sm:py-2.5 rounded-full shadow-2xl border backdrop-blur-md text-xs sm:text-sm font-medium transition-all ${
+              syncStatus === 'updating'
+                ? 'bg-slate-900/95 text-amber-300 border-amber-500/40 shadow-amber-500/10'
+                : syncStatus === 'success'
+                ? 'bg-emerald-950/95 text-emerald-300 border-emerald-500/50 shadow-emerald-500/15'
+                : 'bg-rose-950/95 text-rose-300 border-rose-500/50 shadow-rose-500/15'
+            }`}
+          >
+            {syncStatus === 'updating' && (
+              <Loader2 className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+            )}
+            {syncStatus === 'success' && (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            {syncStatus === 'error' && (
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            )}
+            <span className="truncate">{syncMsg}</span>
+            <button
+              onClick={() => {
+                if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+                setSyncStatus('idle');
+              }}
+              className="ml-1 text-white/50 hover:text-white p-0.5 rounded-full hover:bg-white/10 transition-colors shrink-0"
+              title="Đóng thông báo"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <Header 
         onLogoClick={() => { setActiveMatch(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }} 
         currentSource={currentSource}

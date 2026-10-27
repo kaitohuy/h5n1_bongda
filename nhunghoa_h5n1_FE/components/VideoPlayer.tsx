@@ -641,14 +641,14 @@ export default function VideoPlayer({
                             <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
                         </button>
 
-                        {/* Fullscreen Button: Same styling as other buttons, no gradient */}
+                        {/* Fullscreen Button: Xanh lá cây nổi bật để người dùng dễ click */}
                         <button
                             onClick={handleFullScreen}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-[var(--surface)] dark:bg-slate-800 text-[var(--foreground)] border border-[var(--border)] hover:bg-[var(--header-btn-hover)] hover:text-[var(--foreground)] active:scale-95 transition-all"
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 shadow-sm shadow-emerald-600/30 active:scale-95 transition-all"
                             title="Toàn màn hình (F)"
                             aria-label="Toàn màn hình"
                         >
-                            <Maximize size={14} />
+                            <Maximize size={14} className="text-white" />
                             <span>Toàn màn hình</span>
                         </button>
 
