@@ -604,8 +604,19 @@ export default function VideoPlayer({
                         </span>
                     </div>
 
-                    {/* Right controls: Server & Commentator selector, Settings, Fullscreen, Close */}
+                    {/* Right controls: Fullscreen, Server & Commentator selector, Settings, Close */}
                     <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                        {/* Fullscreen Button: Đặt ở bên trái dropdown server, màu xanh lá cây nổi bật */}
+                        <button
+                            onClick={handleFullScreen}
+                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 shadow-sm shadow-emerald-600/30 active:scale-95 transition-all"
+                            title="Toàn màn hình (F)"
+                            aria-label="Toàn màn hình"
+                        >
+                            <Maximize size={14} className="text-white" />
+                            <span>Toàn màn hình</span>
+                        </button>
+
                         {/* Server / BLV selector */}
                         {availableServers.length > 0 && (
                             <div className="relative">
@@ -639,17 +650,6 @@ export default function VideoPlayer({
                             aria-label="Cài đặt video"
                         >
                             <Settings size={15} className={isSettingsOpen ? 'rotate-90 transition-transform duration-200' : 'transition-transform duration-200'} />
-                        </button>
-
-                        {/* Fullscreen Button: Xanh lá cây nổi bật để người dùng dễ click */}
-                        <button
-                            onClick={handleFullScreen}
-                            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/80 shadow-sm shadow-emerald-600/30 active:scale-95 transition-all"
-                            title="Toàn màn hình (F)"
-                            aria-label="Toàn màn hình"
-                        >
-                            <Maximize size={14} className="text-white" />
-                            <span>Toàn màn hình</span>
                         </button>
 
                         {/* Close Button: Icon only as requested */}
