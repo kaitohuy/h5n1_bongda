@@ -20,7 +20,7 @@ const API_HEADERS = {
 // ── Cache ─────────────────────────────────────────────────────────────────────
 let matchCache = null;
 let matchCacheTime = 0;
-const MATCH_CACHE_TTL = 20 * 1000; // 20 giây
+const MATCH_CACHE_TTL = 2 * 60 * 1000; // 2 phút (SWR on-demand)
 
 let liveDetailCache = null;
 let liveDetailCacheTime = 0;

@@ -4,8 +4,7 @@
  */
 
 const BASE_API_URL = 'https://gavangtv-api.adviceme.io/api/v1';
-const CACHE_TTL_MS = 25 * 1000; // 25s fresh cache
-const BACKGROUND_POLL_INTERVAL_MS = 30 * 1000; // 30s background poller
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache (SWR on-demand)
 
 let matchesCache = {
     data: [],
@@ -275,13 +274,10 @@ async function fetchGavangCommentators() {
 }
 
 /**
- * Prewarm and start background polling worker.
+ * Prewarm cache at server boot. SWR handles subsequent on-demand refreshes.
  */
 function prewarmGavangCache() {
-    _doFetchGavangMatches().catch(() => {});
-    setInterval(() => {
-        _doFetchGavangMatches().catch(() => {});
-    }, BACKGROUND_POLL_INTERVAL_MS);
+    _doFetchGavangMatches().catch(err => console.warn(`[Gavang Worker] Prewarm failed: ${err.message}`));
 }
 
 /**

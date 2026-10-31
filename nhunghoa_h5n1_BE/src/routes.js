@@ -29,9 +29,12 @@ const router = Router();
 const SCRAPER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ' +
     '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-// ── Health check (Render & K8s support) ───────────────────────────────────────
-router.get(['/health', '/healthz', '/api/health'], (_req, res) => {
-    res.json({ status: 'ok', service: 'nhunghoa-h5n1-be', timestamp: new Date().toISOString() });
+// ── Health check (Render & K8s support, supports GET and HEAD) ───────────────
+router.all(['/health', '/healthz', '/api/health'], (req, res) => {
+    if (req.method === 'HEAD') {
+        return res.status(200).end();
+    }
+    return res.json({ status: 'ok', service: 'nhunghoa-h5n1-be', timestamp: new Date().toISOString() });
 });
 
 // ── Commentators Listing & Ranking ────────────────────────────────────────────

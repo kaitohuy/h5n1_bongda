@@ -6,8 +6,7 @@
 const cheerio = require('cheerio');
 
 const BASE_URL = 'https://cakhiazaa.tv';
-const CACHE_TTL_MS = 25 * 1000; // 25s fresh cache
-const BACKGROUND_POLL_INTERVAL_MS = 30 * 1000; // 30s background poller
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache (SWR on-demand)
 
 let matchesCache = {
     data: [],
@@ -273,13 +272,10 @@ async function fetchCakhiaCommentators() {
 }
 
 /**
- * Prewarm and start background polling worker.
+ * Prewarm cache at server boot. SWR handles subsequent on-demand refreshes.
  */
 function prewarmCakhiaCache() {
-    _doFetchCakhiaMatches().catch(() => {});
-    setInterval(() => {
-        _doFetchCakhiaMatches().catch(() => {});
-    }, BACKGROUND_POLL_INTERVAL_MS);
+    _doFetchCakhiaMatches().catch(err => console.warn(`[Cakhia Worker] Prewarm failed: ${err.message}`));
 }
 
 /**
