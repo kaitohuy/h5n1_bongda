@@ -7,6 +7,7 @@ const cheerio = require('cheerio');
 
 const BASE_URL = 'https://cakhiazaa.tv';
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache (SWR on-demand)
+const MAX_STALE_MS = 5 * 60 * 1000; // Force await fresh fetch if cache is older than 5 minutes
 
 let matchesCache = {
     data: [],
@@ -193,10 +194,12 @@ async function _doFetchCakhiaMatches() {
  */
 async function fetchCakhiaMatches(forceRefresh = false) {
     const now = Date.now();
-    const isStale = (now - matchesCache.timestamp) >= CACHE_TTL_MS;
+    const age = now - matchesCache.timestamp;
+    const isStale = age >= CACHE_TTL_MS;
+    const isExpired = age >= MAX_STALE_MS;
 
     // 1. If cache exists and fresh, return immediately
-    if (!forceRefresh && matchesCache.data.length > 0) {
+    if (!forceRefresh && matchesCache.data.length > 0 && !isExpired) {
         if (isStale && !activeFetchPromise) {
             _doFetchCakhiaMatches().catch(() => {});
         }

@@ -5,6 +5,7 @@
 
 const BASE_API_URL = 'https://gavangtv-api.adviceme.io/api/v1';
 const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes fresh cache (SWR on-demand)
+const MAX_STALE_MS = 5 * 60 * 1000; // Force await fresh fetch if cache is older than 5 minutes
 
 let matchesCache = {
     data: [],
@@ -195,10 +196,12 @@ async function _doFetchGavangMatches() {
  */
 async function fetchGavangMatches(forceRefresh = false) {
     const now = Date.now();
-    const isStale = (now - matchesCache.timestamp) >= CACHE_TTL_MS;
+    const age = now - matchesCache.timestamp;
+    const isStale = age >= CACHE_TTL_MS;
+    const isExpired = age >= MAX_STALE_MS;
 
-    // 1. If cache exists and is fresh, return immediately
-    if (!forceRefresh && matchesCache.data.length > 0) {
+    // 1. If cache exists and is not expired, return immediately (SWR if slightly stale)
+    if (!forceRefresh && matchesCache.data.length > 0 && !isExpired) {
         if (isStale && !activeFetchPromise) {
             _doFetchGavangMatches().catch(() => {});
         }

@@ -40,7 +40,7 @@ router.all(['/health', '/healthz', '/api/health'], (req, res) => {
 // ── Commentators Listing & Ranking ────────────────────────────────────────────
 // GET /api/commentators?source=colatv|cakhiatv|gavangtv
 router.get('/api/commentators', async (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     try {
         const { source = 'colatv' } = req.query;
         let commentators = [];
@@ -100,7 +100,7 @@ router.get('/api/clear-cache', (_req, res) => {
 // ── Match listing ─────────────────────────────────────────────────────────────
 // GET /api/matches?filter=live|hot|today|tomorrow|all&league={leagueId}&source=colatv|cakhiatv
 router.get('/api/matches', async (req, res) => {
-    res.setHeader('Cache-Control', 'public, max-age=15, stale-while-revalidate=45');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     const { filter = 'all', league = '', source = 'colatv' } = req.query;
     const validFilters = ['live', 'hot', 'today', 'tomorrow', 'all'];
     const safeFilter = validFilters.includes(filter) ? filter : 'all';
